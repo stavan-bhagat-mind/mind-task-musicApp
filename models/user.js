@@ -1,15 +1,20 @@
 "use strict";
 const { Model } = require("sequelize");
+const { role } = require("../constant/constant");
 
 module.exports = (sequelize, DataTypes) => {
-  class User extends Model {}
+  class User extends Model {
+    static associate(models) {
+      User.hasMany(models.Playlist, {
+        foreignKey: "user_id",
+      });
+      User.hasMany(models.Song, {
+        foreignKey: "user_id",
+      });
+    }
+  }
   User.init(
     {
-      user_id: {
-        type: DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true,
-      },
       user_name: {
         type: DataTypes.STRING,
       },
@@ -17,7 +22,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
       },
       user_type: {
-        type: DataTypes.STRING,
+        type: DataTypes.ENUM(Object.values(role)),
       },
     },
     {

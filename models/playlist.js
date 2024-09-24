@@ -1,40 +1,47 @@
 "use strict";
-const {
-  Model
-} = require("sequelize");
-const User=require("./user");
-const Song=require("./songs");
+const { Model } = require("sequelize");
 
 module.exports = (sequelize, DataTypes) => {
   class Playlist extends Model {
+    static associate(models) {
+      Playlist.belongsTo(models.User, {
+        foreignKey: "user_id",
+      });
+      Playlist.belongsToMany(models.Song, {
+        through: "PlaylistSongs",
+        foreignKey: "playlist_id",
+      });
+    }
   }
-  Playlist.init({
-    playlist_id: {
-        type: DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true,
-      },
+  Playlist.init(
+    { 
       playlist_name: {
         type: DataTypes.STRING,
+        allowNull: false,
       },
       songs_id: {
         type: DataTypes.INTEGER,
         references: {
-          model: Song,
-          key: "song_id",
+          model: "songs",
+          key: "id",
         },
       },
       user_id: {
         type: DataTypes.INTEGER,
         references: {
-          model: User,
-          key: "user_id",
+          model: "users",
+          key: "id",
         },
+        allowNull: false,
       },
-  }, {
-    sequelize,
-    modelName: "Playlist",
-    tableName: "playlists"
-  });
+    },
+    {
+      sequelize,
+      modelName: "Playlist",
+      tableName: "playlists",
+    }
+  );
   return Playlist;
 };
+
+

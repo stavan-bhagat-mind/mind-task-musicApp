@@ -1,27 +1,29 @@
 "use strict";
-const { role } = require("../constant/constant");
+
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable("users", {
+    await queryInterface.createTable("PlaylistSongs", {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER,
       },
-      user_name: {
-        type: Sequelize.STRING,
-        allowNull: false,
+      playlist_id: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: "playlists",
+          key: "id",
+        },
       },
-      user_password: {
-        type: Sequelize.STRING,
-        allowNull: false,
+      song_id: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: "songs",
+          key: "id",
+        },
       },
-      user_type: {
-        type: Sequelize.ENUM(Object.values(role)),
-        allowNull: false,
-      },
-      createdAt: {
+      createdAd: {
         allowNull: false,
         type: Sequelize.DATE,
       },
@@ -33,6 +35,6 @@ module.exports = {
   },
 
   async down(queryInterface) {
-    await queryInterface.dropTable("users");
+    await queryInterface.dropTable("PlaylistSongs");
   },
 };
