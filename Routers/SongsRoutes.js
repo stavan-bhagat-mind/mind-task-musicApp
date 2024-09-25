@@ -1,15 +1,14 @@
-const {addSong} =  require("../Controllers/SongController/songController.js");
+const {
+  addSong,
+  deleteSong,
+  UpdateSongData,
+  getSongData,
+} = require("../Controllers/SongController/songController.js");
 
 const songRoute = require("express").Router();
+songRoute.get("/getData", getSongData);
 songRoute.post("/add", addSong);
+songRoute.patch("/update/:id", UpdateSongData);
+songRoute.delete("/delete/:id", deleteSong);
 
-
-
-module.exports =  songRoute;
-
-
-// const {getListOfSong, getSongDataFromId, addSong, deleteSong} =  require("../Controllers/UserController/userController.js");
-
-// songRoute.get("/all", getListOfSong);
-// songRoute.get("/:id", getSongDataFromId);
-// songRoute.delete("/:id", deleteSong);
+module.exports = songRoute;

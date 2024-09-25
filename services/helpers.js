@@ -15,6 +15,24 @@ const hashConvert = async (plainPassword) => {
   });
 };
 
+const hashVerify = async (password, hashPassword) => {
+  return new Promise((resolve, reject) => {
+    try {
+      bcrypt.compare(password, hashPassword, (err, data) => {
+        if (err) throw err;
+        if (data) {
+          resolve(data);
+        } else {
+          reject(err);
+        }
+      });
+    } catch (e) {
+      reject(e);
+    }
+  });
+};
+
 module.exports = {
   hashConvert,
+  hashVerify
 };

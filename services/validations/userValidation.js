@@ -16,7 +16,7 @@ const { http } = require("../../constant/constant");
 // };
 //
 
-const validateUserRegister = (data,res) => {
+const validateUserRegister = (data, res) => {
   const userValidationSchema = Joi.object({
     name: Joi.string().min(3).max(30).required(),
     email: Joi.string().email().required(),
@@ -30,7 +30,6 @@ const validateUserRegister = (data,res) => {
       message: http.BAD_REQUEST.message,
       details: error.details.map((detail) => detail.message),
     });
-
   }
   return {
     success: true,
@@ -38,21 +37,23 @@ const validateUserRegister = (data,res) => {
   };
 };
 
-const validateLogin = (data) => {
+const validateLogin = (data, res) => {
   const loginValidationSchema = Joi.object({
-    email: Joi.string().email({
-      minDomainSegments: 2,
-      tlds: { allow: ["com", "net"] },
-    }),
+    email: Joi.string()
+      .email({
+        minDomainSegments: 2,
+        tlds: { allow: ["com", "net"] },
+      })
+      .required(),
     password: Joi.string().min(6).required(),
   });
   const { error, value } = loginValidationSchema.validate(data);
   if (error) {
-    return {
+    return res.status(http.BAD_REQUEST.code).send({
       success: false,
       message: http.BAD_REQUEST.message,
       details: error.details.map((detail) => detail.message),
-    };
+    });
   }
   return {
     success: true,

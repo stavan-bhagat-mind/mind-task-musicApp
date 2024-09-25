@@ -24,10 +24,14 @@ module.exports = (sequelize, DataTypes) => {
       user_type: {
         type: DataTypes.ENUM(Object.values(role)),
       },
+      email:{
+        type: DataTypes.STRING,
+      }
     },
     {
       sequelize,
       modelName: "User",
+      timestamps:true,
       tableName: "users",
     }
   );
