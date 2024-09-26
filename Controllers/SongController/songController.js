@@ -1,17 +1,12 @@
 const Models = require("../../models/index");
 const { http, messages } = require("../../constant/constant");
+
 const {
   validateAddSongs,
 } = require("../../services/validations/songValidation");
 
 module.exports.addSong = async (req, res) => {
   try {
-    // const { name, genre, singer } = req.body;
-    // if (!name || !genre || !singer) {
-    //   return res
-    //     .status(Http.NO_CONTENT.code)
-    //     .send({ data: null, message: Http.NO_CONTENT.message });
-    // }
     const { value } = validateAddSongs(req.body, res);
     console.log(value);
     const data = await Models.Song.create({
@@ -60,7 +55,7 @@ module.exports.UpdateSongData = async (req, res) => {
     const updateFields = {
       song_name: name,
       meta,
-      singer
+      singer,
     };
     const [affectedRows] = await Models.Song.update(updateFields, {
       where: {
@@ -81,7 +76,6 @@ module.exports.UpdateSongData = async (req, res) => {
       message: http.CREATED.message,
     });
   } catch (e) {
-    console.log(e);
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
       success: false,
       data: null,
@@ -110,6 +104,74 @@ module.exports.getSongData = async (req, res) => {
     });
   }
 };
+
+module.exports.getSearchData = async (req, res) => {
+  try {
+    const { query } = req.query;
+    console.log("query", query, "typeof", typeof query);
+
+    const data = await Models.Song.findAll({
+      where: Models.Song.sequelize.where(
+        Models.Song.sequelize.fn(
+          "JSON_CONTAINS",
+          Models.Song.sequelize.col("meta"),
+          query
+        ),
+        true
+      ),
+    });
+    if (!data) {
+      return res.status(http.NOT_FOUND.code).send({
+        data,
+        message: http.NOT_FOUND.message,
+      });
+    }
+    res.status(http.OK.code).send({
+      success: true,
+      data,
+      message: http.OK.message,
+    });
+  } catch (e) {
+    res.send({
+      data: null,
+      message: "Something went wrong.",
+    });
+  }
+};
+
+// exports.searchProducts = async (req, res) => {
+//   try {
+//     const { query } = req.query;
+//     if (!query) {
+//       return res.status(400).json({ message: 'Query is required' });
+//     }
+//     const searchRegex = new RegExp(query, 'i');
+
+//     const isCategory = await Product.exists({ category: searchRegex });
+//     const isBrand = await Product.exists({ brandName: searchRegex });
+
+//     let searchQuery = {};
+//     let type = 'productName';
+
+//     if (isCategory) {
+//       searchQuery = { category: searchRegex };
+//       type = 'category';
+//     } else if (isBrand) {
+//       searchQuery = { brandName: searchRegex };
+//       type = 'brandName';
+//     } else {
+//       searchQuery = { productName: searchRegex };
+//     }
+
+//     const products = await Product.find(searchQuery);
+//     console.log('products', products);
+
+//     res.status(200).json({ data: products, type, term: query });
+//   } catch (error) {
+//     console.error('Error fetching products:', error);
+//     res.status(500).json({ message: 'Internal Server Error' });
+//   }
+// };
 
 // module.exports.getListOfUsers = async (req, res) => {
 //     try {

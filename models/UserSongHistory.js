@@ -3,17 +3,17 @@ const { Model } = require("sequelize");
 const { role } = require("../constant/constant");
 
 module.exports = (sequelize, DataTypes) => {
-  class User extends Model {
+  class UserSongHistory extends Model {
     static associate(models) {
-      User.hasMany(models.Playlist, {
-        foreignKey: "user_id",
-      });
-      User.hasMany(models.Song, {
+    //     UserSongHistory.hasMany(models.Playlist, {
+    //     foreignKey: "user_id",
+    //   });
+      UserSongHistory.hasMany(models.Song, {
         foreignKey: "creator_id",
       });
     }
   }
-  User.init(
+  UserSongHistory.init(
     {
       user_name: {
         type: DataTypes.STRING,
@@ -35,5 +35,5 @@ module.exports = (sequelize, DataTypes) => {
       tableName: "users",
     }
   );
-  return User;
+  return UserSongHistory;
 };

@@ -10,7 +10,7 @@ module.exports = (sequelize, DataTypes) => {
       });
 
       Song.belongsTo(models.User, {
-        foreignKey: "user_id",
+        foreignKey: "creator_id",
       });
     }
   }

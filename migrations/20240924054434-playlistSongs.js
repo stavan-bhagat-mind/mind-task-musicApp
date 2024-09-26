@@ -23,7 +23,7 @@ module.exports = {
           key: "id",
         },
       },
-      createdAd: {
+      createdAt: {
         allowNull: false,
         type: Sequelize.DATE,
       },

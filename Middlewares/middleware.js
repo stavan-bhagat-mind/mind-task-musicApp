@@ -13,7 +13,8 @@ const authenticationMiddleware = (req, res, next) => {
       });
     }
     const token = authenticationToken.split(" ")[1];
-    jwt.verify(token, process.env.JWT_KEY);
+    const decoded = jwt.verify(token, process.env.JWT_KEY);
+    req.userId = decoded.id;
     next();
   } catch (error) {
     if (error.name === "TokenExpiredError") {

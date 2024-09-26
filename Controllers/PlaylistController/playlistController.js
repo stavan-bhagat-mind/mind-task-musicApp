@@ -2,6 +2,7 @@ const Models = require("../../models/index");
 const { http, messages } = require("../../constant/constant");
 const {
   validateAddPlaylist,
+  validateAddSongPlaylist,
 } = require("../../services/validations/playlistValidation");
 
 module.exports.addPlaylist = async (req, res) => {
@@ -10,7 +11,7 @@ module.exports.addPlaylist = async (req, res) => {
     console.log(value);
     const data = await Models.Playlist.create({
       playlist_name: value.playlist_name,
-      songs_id: value.songs_id,
+      // songs_id: value.songs_id,
       user_id: value.user_id,
     });
     res.status(http.OK.code).send({
@@ -97,6 +98,44 @@ module.exports.getPlaylistData = async (req, res) => {
     });
   } catch (e) {
     res.send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.addSongPlaylist = async (req, res) => {
+  try {
+    const { value } = validateAddSongPlaylist(req.body, res);
+    console.log(value);
+    const playlist = await Models.Playlist.findOne({
+      where: { id: value.playlist_id },
+    });
+    if (!playlist) {
+      return res.status(http.NOT_FOUND.code).send({
+        message: http.NOT_FOUND.message,
+      });
+    }
+    const songIds = Array.isArray(value.song_id)
+      ? value.song_id
+      : [value.song_id];
+    const songs = await Models.Song.findAll({ where: { id: songIds } });
+
+    if (songs.length === 0) {
+      res.status(http.NOT_FOUND.code).send({
+        message: http.NOT_FOUND.message,
+      });
+    }
+    console.log(songs);
+    await playlist.addSongs(songs);
+
+    res.status(http.OK.code).send({
+      playlistId: playlist.id,
+      addedSongs: songs,
+      message: http.OK.message,
+    });
+  } catch (e) {
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
       data: null,
       message: http.INTERNAL_SERVER_ERROR.message,
     });

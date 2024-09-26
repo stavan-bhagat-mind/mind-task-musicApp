@@ -54,7 +54,7 @@ module.exports.loginUser = async (req, res) => {
 
     const accessToken = jwt.sign(
       {
-        data: User.dataValues.email,
+        data: { email: User.dataValues.email, id: User.dataValues.id },
       },
       process.env.JWT_KEY,
       { expiresIn: process.env.JWT_EXPIRE_TIME }
@@ -62,7 +62,7 @@ module.exports.loginUser = async (req, res) => {
 
     const refreshToken = jwt.sign(
       {
-        data: User.dataValues.email,
+        data: { email: User.dataValues.email, id: User.dataValues.id },
       },
       process.env.JWT_REFRESH_KEY,
       { expiresIn: process.env.JWT_REFRESH_EXPIRE_TIME }
@@ -113,6 +113,7 @@ module.exports.getAuthenticationToken = async (req, res) => {
       throw { isError: true, message: errors.TOKEN_NOT_PROVIDED };
     const token = refreshToken.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_KEY);
+  
     const accessToken = jwt.sign(
       {
         data: decoded.data,
