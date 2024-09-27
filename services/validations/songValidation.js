@@ -4,7 +4,7 @@ const { http } = require("../../constant/constant");
 const validateAddSongs = (data, res) => {
     const songValidationSchema = Joi.object({
       song_name: Joi.string().min(3).max(30).required(),
-      meta: Joi.array().items(Joi.string()).required(),
+      genres: Joi.array().items(Joi.number()).required(),
       singer: Joi.string().required(),
       creator_id: Joi.number().required(),
     });

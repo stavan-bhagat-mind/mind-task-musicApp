@@ -3,7 +3,7 @@ const {
   deleteSong,
   UpdateSongData,
   getSongData,
-  getSearchData
+  getSearchData,
 } = require("../Controllers/SongController/songController.js");
 
 const songRoute = require("express").Router();

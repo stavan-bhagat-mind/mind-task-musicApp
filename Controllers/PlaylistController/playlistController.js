@@ -8,7 +8,6 @@ const {
 module.exports.addPlaylist = async (req, res) => {
   try {
     const { value } = validateAddPlaylist(req.body, res);
-    console.log(value);
     const data = await Models.Playlist.create({
       playlist_name: value.playlist_name,
       // songs_id: value.songs_id,

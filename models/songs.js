@@ -8,9 +8,16 @@ module.exports = (sequelize, DataTypes) => {
         through: "PlaylistSongs",
         foreignKey: "song_id",
       });
-
       Song.belongsTo(models.User, {
         foreignKey: "creator_id",
+      });
+      Song.hasMany(models.UserSongHistory, {
+        foreignKey: "song_id",
+      });
+      Song.belongsToMany(models.Genre, {
+        through: "song_genres",
+        foreignKey: "song_id",
+        otherKey: "genre_id",
       });
     }
   }
@@ -18,9 +25,6 @@ module.exports = (sequelize, DataTypes) => {
     {
       song_name: {
         type: DataTypes.STRING,
-      },
-      meta: {
-        type: DataTypes.JSON,
       },
       singer: {
         type: DataTypes.STRING,
@@ -35,7 +39,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     {
       sequelize,
-      timestamps:true,
+      timestamps: true,
       modelName: "Song",
       tableName: "songs",
     }

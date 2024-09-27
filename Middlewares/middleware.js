@@ -14,7 +14,7 @@ const authenticationMiddleware = (req, res, next) => {
     }
     const token = authenticationToken.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_KEY);
-    req.userId = decoded.id;
+    req.userId = decoded.data.id;
     next();
   } catch (error) {
     if (error.name === "TokenExpiredError") {

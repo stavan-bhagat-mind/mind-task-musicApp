@@ -113,7 +113,7 @@ module.exports.getAuthenticationToken = async (req, res) => {
       throw { isError: true, message: errors.TOKEN_NOT_PROVIDED };
     const token = refreshToken.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_KEY);
-  
+
     const accessToken = jwt.sign(
       {
         data: decoded.data,
@@ -198,18 +198,148 @@ module.exports.getUserData = async (req, res) => {
         message: http.NOT_FOUND.message,
       });
     }
-    res.send({
+    res.status(http.OK.code).send({
       data,
       message: http.OK.message,
     });
   } catch (e) {
-    res.send({
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
       data: null,
       message: http.INTERNAL_SERVER_ERROR.message,
     });
   }
 };
 
+module.exports.accessControl = async (req, res) => {
+  try {
+    const { user_id, password } = req.body;
+    if (!user_id) {
+      res.status(http.NOT_FOUND.code).send({
+        data: null,
+        message: http.NOT_FOUND.message,
+      });
+    }
+    const User = await Models.User.findOne({ where: { id: user_id } });
+    if (!User) {
+      return res.status(http.NOT_FOUND.code).send({
+        User,
+        message: http.NOT_FOUND.message,
+      });
+    }
+    try {
+      await hashVerify(password, User.dataValues.user_password);
+    } catch (e) {
+      console.log("err", e);
+    }
+    await Models.AccessControl.create({ user_id: User.dataValues.id });
+    res.status(http.OK.code).send({
+      success: true,
+      message: http.OK.message,
+    });
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+module.exports.addGenre = async (req, res) => {
+  try {
+    // const { value } = validateAddSongs(req.body, res);
+
+    const { genreName, userId } = req.body;
+    const data = await Models.AccessControl.findOne({
+      where: { user_id: userId },
+    });
+    if (!data) {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
+    } else {
+      const genre = await Models.Genre.create({
+        genre_name: genreName,
+        creator_id: data.dataValues.user_id,
+      });
+
+      res.status(http.OK.code).send({
+        success: true,
+        data: genre.dataValues.genre_name,
+        message: http.OK.message,
+      });
+    }
+    // console.log(value);
+  } catch (e) {
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.userSongHistory = async (req, res) => {
+  try {
+    // const { value } = validateAddSongs(req.body, res);
+    const userId = req.userId;
+    const { songId } = req.body;
+    console.log(userId, "    ", songId);
+    const data = await Models.Song.findAll({
+      where: { id: songId },
+      include: [
+        {
+          model: Models.Genre,
+          through: {
+            attributes: [],
+          },
+          attributes: ["id"], // Only include the genre id
+        },
+      ],
+    });
+
+    const results = data.map((song) => {
+      const genreIds = song.Genres.map((genre) => genre.id);
+      return { songName: song.song_name, genreIds: genreIds };
+    });
+
+    console.log("Results:",results);
+    // console.log("Results:", JSON.stringify(results, null, 2));
+    // for (const genreId of result.genreIds) {
+    //   await UserGenrePlay.create({
+    //     user_id: userId,
+    //     genre_id: genreId,
+    //     genre_play_count: playCount,
+    //   });
+    // }
+    // console.log(data[1].dataValues.Genres);
+    // if (!data) {
+    //   res.status(http.FORBIDDEN.code).send({
+    //     success: false,
+    //     data: null,
+    //     message: http.FORBIDDEN.message,
+    //   });
+    // } else {
+    //   const genre = await Models.Genre.create({
+    //     genre_name: genreName,
+    //     creator_id: data.dataValues.user_id,
+    //   });
+
+    //   res.status(http.OK.code).send({
+    //     success: true,
+    //     data: genre.dataValues.genre_name,
+    //     message: http.OK.message,
+    //   });
+    // }
+    // console.log(value);
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
 // module.exports.getUserDataFromId = async (req, res) => {
 //   try {
 //     const id = parseInt(req.params.id);

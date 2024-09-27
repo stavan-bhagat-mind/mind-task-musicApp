@@ -11,6 +11,20 @@ module.exports = (sequelize, DataTypes) => {
       User.hasMany(models.Song, {
         foreignKey: "creator_id",
       });
+      User.hasMany(models.UserSongHistory, {
+        foreignKey: "user_id",
+      });
+      User.hasMany(models.AccessControl, {
+        foreignKey: "user_id",
+      });
+      User.hasMany(models.Genre, {
+        foreignKey: "creator_id",
+      });
+      User.belongsToMany(models.Genre, {
+        through: "user_genre",
+        foreignKey: "user_id",
+        // otherKey: "genre_id",
+      });
     }
   }
   User.init(

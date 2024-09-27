@@ -8,15 +8,16 @@ const {
 module.exports.addSong = async (req, res) => {
   try {
     const { value } = validateAddSongs(req.body, res);
-    console.log(value);
-    const data = await Models.Song.create({
+    const song = await Models.Song.create({
       song_name: value.song_name,
-      meta: value.meta,
       singer: value.singer,
       creator_id: value.creator_id,
     });
+
+    await song.addGenres(value.genres);
     res.status(http.OK.code).send({
-      data,
+      success: true,
+      data: song.dataValues.song_name,
       message: http.OK.message,
     });
   } catch (e) {
