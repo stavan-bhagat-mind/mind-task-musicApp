@@ -4,9 +4,6 @@ const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class UserSongHistory extends Model {
     static associate(models) {
-      //     UserSongHistory.hasMany(models.Playlist, {
-      //     foreignKey: "user_id",
-      //   });
       UserSongHistory.belongsTo(models.Genre, {
         foreignKey: "genre_id",
       });
@@ -30,6 +27,9 @@ module.exports = (sequelize, DataTypes) => {
           model: "genres",
           key: "id",
         },
+      },
+      genre_play_count: {
+        type: DataTypes.INTEGER,
       },
     },
     {
