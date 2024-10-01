@@ -1,11 +1,12 @@
 const Models = require("../../models/index");
-const { http, errors } = require("../../constant/constant");
+const { http, errors, role } = require("../../constant/constant");
 var jwt = require("jsonwebtoken");
 require("dotenv").config();
 const { hashConvert, hashVerify } = require("../../services/helpers");
 const {
   validateUserRegister,
   validateLogin,
+  validateUpdateUserData,
 } = require("../../services/validations/userValidation");
 const { Op } = require("sequelize");
 
@@ -95,8 +96,8 @@ module.exports.deleteUser = async (req, res) => {
         id,
       },
     });
-    res.send({
-      message: "User removed successfully.",
+    res.status(http.OK.code).send({
+      message: http.OK.message,
     });
   } catch (e) {
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
@@ -155,13 +156,21 @@ module.exports.getAuthenticationToken = async (req, res) => {
 module.exports.UpdateUserData = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { name, email, type } = req.body;
+    const userId = req.userId;
+    const { value } = validateUpdateUserData(req.body, res);
+
+    const user = await Models.User.findOne({
+      where: { id: userId },
+      attributes: ["id", "user_name", "user_password", "user_type", "email"],
+    });
+    const userType = user.dataValues.user_type;
 
     const updateFields = {
-      user_name: name,
-      email: email,
-      user_type: type,
+      user_name: value.name,
+      email: value.email,
+      user_type: userType === role.admin ? value.type : role.user,
     };
+
     const [affectedRows] = await Models.User.update(updateFields, {
       where: {
         id,
@@ -192,7 +201,20 @@ module.exports.UpdateUserData = async (req, res) => {
 
 module.exports.getUserData = async (req, res) => {
   try {
-    const data = await Models.User.findAll();
+    const { page, pageSize } = req.query;
+
+    const currentPage = parseInt(page, 10) || 0;
+    const currentPageSize = parseInt(pageSize, 10) || 5;
+
+    const offset = currentPage * currentPageSize;
+    const limit = currentPageSize;
+
+    const data = await Models.User.findAll({
+      where: {},
+      offset: offset,
+      limit: limit,
+    });
+    console.log(data);
     if (!data) {
       return res.status(http.NOT_FOUND.code).send({
         data,
@@ -211,40 +233,6 @@ module.exports.getUserData = async (req, res) => {
   }
 };
 
-module.exports.accessControl = async (req, res) => {
-  try {
-    const { user_id, password } = req.body;
-    if (!user_id) {
-      res.status(http.NOT_FOUND.code).send({
-        data: null,
-        message: http.NOT_FOUND.message,
-      });
-    }
-    const User = await Models.User.findOne({ where: { id: user_id } });
-    if (!User) {
-      return res.status(http.NOT_FOUND.code).send({
-        User,
-        message: http.NOT_FOUND.message,
-      });
-    }
-    try {
-      await hashVerify(password, User.dataValues.user_password);
-    } catch (e) {
-      console.log("err", e);
-    }
-    await Models.AccessControl.create({ user_id: User.dataValues.id });
-    res.status(http.OK.code).send({
-      success: true,
-      message: http.OK.message,
-    });
-  } catch (e) {
-    console.log(e);
-    res.status(http.INTERNAL_SERVER_ERROR.code).send({
-      data: null,
-      message: http.INTERNAL_SERVER_ERROR.message,
-    });
-  }
-};
 module.exports.addGenre = async (req, res) => {
   try {
     const { genreName, userId } = req.body;
@@ -489,3 +477,38 @@ module.exports.getUserPreference = async (req, res) => {
     });
   }
 };
+
+// module.exports.accessControl = async (req, res) => {
+//   try {
+//     const { user_id, password } = req.body;
+//     if (!user_id) {
+//       res.status(http.NOT_FOUND.code).send({
+//         data: null,
+//         message: http.NOT_FOUND.message,
+//       });
+//     }
+//     const User = await Models.User.findOne({ where: { id: user_id } });
+//     if (!User) {
+//       return res.status(http.NOT_FOUND.code).send({
+//         User,
+//         message: http.NOT_FOUND.message,
+//       });
+//     }
+//     try {
+//       await hashVerify(password, User.dataValues.user_password);
+//     } catch (e) {
+//       console.log("err", e);
+//     }
+//     await Models.AccessControl.create({ user_id: User.dataValues.id });
+//     res.status(http.OK.code).send({
+//       success: true,
+//       message: http.OK.message,
+//     });
+//   } catch (e) {
+//     console.log(e);
+//     res.status(http.INTERNAL_SERVER_ERROR.code).send({
+//       data: null,
+//       message: http.INTERNAL_SERVER_ERROR.message,
+//     });
+//   }
+// };
