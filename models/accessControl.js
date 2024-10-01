@@ -7,14 +7,11 @@ module.exports = (sequelize, DataTypes) => {
       AccessControl.belongsTo(models.User, {
         foreignKey: "user_id",
       });
-    //   AccessControl.hasMany(models.Genre, {
-    //     foreignKey: "creator_id",
-    //   });
     }
   }
   AccessControl.init(
     {
-        user_id: {
+      user_id: {
         type: DataTypes.INTEGER,
         references: {
           model: "users",

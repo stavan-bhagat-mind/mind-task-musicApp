@@ -247,8 +247,6 @@ module.exports.accessControl = async (req, res) => {
 };
 module.exports.addGenre = async (req, res) => {
   try {
-    // const { value } = validateAddSongs(req.body, res);
-
     const { genreName, userId } = req.body;
     const data = await Models.AccessControl.findOne({
       where: { user_id: userId },
@@ -283,7 +281,6 @@ module.exports.userSongHistory = async (req, res) => {
   try {
     const userId = req.userId;
     const { songId } = req.body;
-    console.log(userId, "    ", songId);
 
     const data = await Models.Song.findAll({
       where: { id: songId },
@@ -303,7 +300,6 @@ module.exports.userSongHistory = async (req, res) => {
       return { songName: song.song_name, genreIds: genreIds };
     });
 
-    console.log("Results:", results);
     const genrePlayCounts = {};
 
     const existingHistories = await Models.UserSongHistory.findAll({
@@ -355,8 +351,8 @@ module.exports.deleteUserHistory = async (req, res) => {
         id,
       },
     });
-    res.send({
-      message: "User removed successfully.",
+    res.status(http.OK.code).send({
+      message: http.OK.message,
     });
   } catch (e) {
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
@@ -370,7 +366,12 @@ module.exports.deleteUserHistory = async (req, res) => {
 module.exports.getUserRecommendation = async (req, res) => {
   try {
     const userId = req.userId;
+    const { page, pageSize } = req.query;
+    const currentPage = parseInt(page, 10) || 0;
+    const currentPageSize = parseInt(pageSize, 10) || 5;
 
+    const offset = currentPage * currentPageSize;
+    const limit = currentPageSize;
     const data = await Models.UserSongHistory.findAll({
       where: { user_id: userId },
       attributes: ["genre_id", "genre_play_count"],
@@ -382,7 +383,6 @@ module.exports.getUserRecommendation = async (req, res) => {
     const genreId = data.map((value) => {
       return value.dataValues.genre_id;
     });
-    console.log(genreId);
     const songs = await Models.Genre.findAll({
       where: {
         id: {
@@ -399,13 +399,20 @@ module.exports.getUserRecommendation = async (req, res) => {
           distinct: true,
         },
       ],
+      offset: offset,
+      limit: limit,
     });
 
     const SuggestionSongs = songs.map((value) => {
       const song = value.dataValues.Songs;
       return song.map((value) => value.dataValues);
     });
-    console.log(SuggestionSongs);
+
+    const flatResult = SuggestionSongs.flat(Infinity);
+
+    const uniqueSuggestions = flatResult.filter(
+      (value, index, self) => index === self.findIndex((t) => t.id === value.id)
+    );
 
     if (!SuggestionSongs) {
       return res.status(http.NOT_FOUND.code).send({
@@ -414,7 +421,7 @@ module.exports.getUserRecommendation = async (req, res) => {
       });
     }
     res.status(http.OK.code).send({
-      data: SuggestionSongs,
+      data: uniqueSuggestions,
       message: http.OK.message,
     });
   } catch (e) {
@@ -429,7 +436,6 @@ module.exports.getUserRecommendation = async (req, res) => {
 module.exports.getUserPreference = async (req, res) => {
   try {
     const userId = parseInt(req.query.userId);
-    console.log(userId);
     const data = await Models.UserSongHistory.findAll({
       where: { user_id: userId },
       attributes: ["genre_id", "genre_play_count"],
@@ -471,10 +477,6 @@ module.exports.getUserPreference = async (req, res) => {
         percentage: percentage.percentage,
       };
     });
-
-    console.log("id & percentage", genreIdPercentages);
-    console.log(" id & genre name", genreData);
-    console.log(mergedData);
 
     res.status(http.OK.code).send({
       data: mergedData,
