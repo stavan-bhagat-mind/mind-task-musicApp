@@ -7,6 +7,7 @@ const {
   validateUserRegister,
   validateLogin,
 } = require("../../services/validations/userValidation");
+const { Op } = require("sequelize");
 
 module.exports.registerUser = async (req, res) => {
   try {
@@ -270,7 +271,6 @@ module.exports.addGenre = async (req, res) => {
         message: http.OK.message,
       });
     }
-    // console.log(value);
   } catch (e) {
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
       data: null,
@@ -281,10 +281,10 @@ module.exports.addGenre = async (req, res) => {
 
 module.exports.userSongHistory = async (req, res) => {
   try {
-    // const { value } = validateAddSongs(req.body, res);
     const userId = req.userId;
     const { songId } = req.body;
     console.log(userId, "    ", songId);
+
     const data = await Models.Song.findAll({
       where: { id: songId },
       include: [
@@ -293,7 +293,7 @@ module.exports.userSongHistory = async (req, res) => {
           through: {
             attributes: [],
           },
-          attributes: ["id"], // Only include the genre id
+          attributes: ["id"],
         },
       ],
     });
@@ -303,35 +303,120 @@ module.exports.userSongHistory = async (req, res) => {
       return { songName: song.song_name, genreIds: genreIds };
     });
 
-    console.log("Results:",results);
-    // console.log("Results:", JSON.stringify(results, null, 2));
-    // for (const genreId of result.genreIds) {
-    //   await UserGenrePlay.create({
-    //     user_id: userId,
-    //     genre_id: genreId,
-    //     genre_play_count: playCount,
-    //   });
-    // }
-    // console.log(data[1].dataValues.Genres);
-    // if (!data) {
-    //   res.status(http.FORBIDDEN.code).send({
-    //     success: false,
-    //     data: null,
-    //     message: http.FORBIDDEN.message,
-    //   });
-    // } else {
-    //   const genre = await Models.Genre.create({
-    //     genre_name: genreName,
-    //     creator_id: data.dataValues.user_id,
-    //   });
+    console.log("Results:", results);
+    const genrePlayCounts = {};
 
-    //   res.status(http.OK.code).send({
-    //     success: true,
-    //     data: genre.dataValues.genre_name,
-    //     message: http.OK.message,
-    //   });
-    // }
-    // console.log(value);
+    const existingHistories = await Models.UserSongHistory.findAll({
+      where: { user_id: userId, genre_id: results[0].genreIds },
+    });
+
+    existingHistories.forEach((history) => {
+      genrePlayCounts[history.genre_id] = history.genre_play_count;
+    });
+
+    for (const genreId of results[0].genreIds) {
+      if (genrePlayCounts[genreId] !== undefined) {
+        await Models.UserSongHistory.update(
+          { genre_play_count: genrePlayCounts[genreId] + 1 },
+          {
+            where: {
+              id: existingHistories.find(
+                (history) => history.genre_id === genreId
+              ).id,
+            },
+          }
+        );
+      } else {
+        await Models.UserSongHistory.create({
+          user_id: userId,
+          genre_id: genreId,
+          genre_play_count: 1,
+        });
+      }
+    }
+
+    res.status(http.OK.code).send({
+      success: true,
+      message: http.OK.message,
+    });
+  } catch (error) {
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.deleteUserHistory = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await Models.UserSongHistory.destroy({
+      where: {
+        id,
+      },
+    });
+    res.send({
+      message: "User removed successfully.",
+    });
+  } catch (e) {
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.getUserRecommendation = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const data = await Models.UserSongHistory.findAll({
+      where: { user_id: userId },
+      attributes: ["genre_id", "genre_play_count"],
+      group: ["genre_id", "genre_play_count"],
+      order: [["genre_play_count", "DESC"]],
+      limit: 2,
+    });
+
+    const genreId = data.map((value) => {
+      return value.dataValues.genre_id;
+    });
+    console.log(genreId);
+    const songs = await Models.Genre.findAll({
+      where: {
+        id: {
+          [Op.in]: genreId,
+        },
+      },
+      include: [
+        {
+          model: Models.Song,
+          through: {
+            attributes: [],
+          },
+          attributes: ["id", "song_name", "singer"],
+          distinct: true,
+        },
+      ],
+    });
+
+    const SuggestionSongs = songs.map((value) => {
+      const song = value.dataValues.Songs;
+      return song.map((value) => value.dataValues);
+    });
+    console.log(SuggestionSongs);
+
+    if (!SuggestionSongs) {
+      return res.status(http.NOT_FOUND.code).send({
+        data,
+        message: http.NOT_FOUND.message,
+      });
+    }
+    res.status(http.OK.code).send({
+      data: SuggestionSongs,
+      message: http.OK.message,
+    });
   } catch (e) {
     console.log(e);
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
@@ -340,44 +425,65 @@ module.exports.userSongHistory = async (req, res) => {
     });
   }
 };
-// module.exports.getUserDataFromId = async (req, res) => {
-//   try {
-//     const id = parseInt(req.params.id);
-//     const data = await Models.User.findOne({
-//       where: {
-//         id,
-//       },
-//     });
-//     if (!data) {
-//       return res.status(404).send({
-//         data,
-//         message: "User with given id does not exist",
-//       });
-//     }
-//     res.send({
-//       data,
-//       message: "Success",
-//     });
-//   } catch (e) {
-//     res.send({
-//       data: null,
-//       message: "Something went wrong.",
-//     });
-//   }
-// };
 
-// module.exports.createUser = async (req, res) => {
-//   try {
-//     const { name } = req.body;
-//     const data = await Models.User.create({ name });
-//     res.send({
-//       data,
-//       message: "Success",
-//     });
-//   } catch (e) {
-//     res.send({
-//       data: null,
-//       message: "Something went wrong.",
-//     });
-//   }
-// };
+module.exports.getUserPreference = async (req, res) => {
+  try {
+    const userId = parseInt(req.query.userId);
+    console.log(userId);
+    const data = await Models.UserSongHistory.findAll({
+      where: { user_id: userId },
+      attributes: ["genre_id", "genre_play_count"],
+      group: ["genre_id", "genre_play_count"],
+      order: [["genre_play_count", "DESC"]],
+    });
+
+    const totalPlayCount = data.reduce((sum, value) => {
+      return sum + value.dataValues.genre_play_count;
+    }, 0);
+
+    const genreIdPercentages = data.map((value) => {
+      const genreId = value.dataValues.genre_id;
+      const playCount = value.dataValues.genre_play_count;
+      const percentage =
+        totalPlayCount > 0 ? (playCount / totalPlayCount) * 100 : 0;
+
+      return {
+        genreId,
+        percentage: percentage.toFixed(2),
+      };
+    });
+
+    const userGenrePercentages = await Promise.all(
+      genreIdPercentages.map(async (value) => {
+        return await Models.Genre.findAll({
+          where: { id: value.genreId },
+          attributes: ["id", "genre_name"],
+        });
+      })
+    );
+
+    const genreData = userGenrePercentages.map((value) => value[0].dataValues);
+
+    const mergedData = genreIdPercentages.map((percentage) => {
+      const genre = genreData.find((g) => g.id === percentage.genreId);
+      return {
+        ...genre,
+        percentage: percentage.percentage,
+      };
+    });
+
+    console.log("id & percentage", genreIdPercentages);
+    console.log(" id & genre name", genreData);
+    console.log(mergedData);
+
+    res.status(http.OK.code).send({
+      data: mergedData,
+      message: http.OK.message,
+    });
+  } catch (e) {
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};

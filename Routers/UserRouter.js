@@ -1,4 +1,4 @@
-const {registerUser,loginUser,UpdateUserData, getAuthenticationToken, deleteUser,getUserData,accessControl,addGenre,userSongHistory} =  require("../Controllers/UserController/userController.js");
+const {registerUser,loginUser,UpdateUserData, getAuthenticationToken, deleteUser,getUserData,accessControl,addGenre,userSongHistory,deleteUserHistory,getUserRecommendation,getUserPreference} =  require("../Controllers/UserController/userController.js");
 const authenticationMiddleware=require("../Middlewares/middleware.js");
 const userRoute = require("express").Router();
 
@@ -11,9 +11,11 @@ userRoute.post("/access-control", accessControl);
 userRoute.get("/refresh", getAuthenticationToken);
 userRoute.post("/add-genre", addGenre);
 userRoute.post("/user-song-history", authenticationMiddleware,userSongHistory);
-
+userRoute.delete("/delete-user-history/:id", deleteUserHistory);
+userRoute.get("/get-recommendation",authenticationMiddleware, getUserRecommendation);
+userRoute.get("/user-genre-percentage", getUserPreference);
 // userRoute.get("/:id", getUserDataFromId);
 
 
-
+ 
 module.exports =  userRoute;
