@@ -1,5 +1,5 @@
 const Models = require("../../models/index");
-const { http, errors, role } = require("../../constant/constant");
+const { http, errors, role ,messages} = require("../../constant/constant");
 var jwt = require("jsonwebtoken");
 require("dotenv").config();
 const { hashConvert, hashVerify } = require("../../services/helpers");
@@ -92,16 +92,34 @@ module.exports.loginUser = async (req, res) => {
 
 module.exports.deleteUser = async (req, res) => {
   try {
+    const userId = req.userId;
     const id = parseInt(req.params.id);
-    await Models.User.destroy({
-      where: {
-        id,
-      },
+    const isAdmin = await Models.User.findOne({
+      where: { id: userId },
     });
-    res.status(http.OK.code).send({
-      message: http.OK.message,
-    });
+
+    if (
+      isAdmin.dataValues.user_type === role.admin ||
+      userId === isAdmin.dataValues.id
+    ) {
+      const deletedUser = await Models.User.destroy({
+        where: {
+          id,
+        },
+      });
+      res.status(http.OK.code).send({
+        success: true,
+        message: messages.REMOVED,
+      });
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
+    }
   } catch (e) {
+    console.log(e);
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
       success: false,
       data: null,

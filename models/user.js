@@ -40,12 +40,17 @@ module.exports = (sequelize, DataTypes) => {
       },
       email:{
         type: DataTypes.STRING,
-      }
+      },
+      deletedAt: {
+        type: DataTypes.DATE,
+        allowNull: true, 
+      },
     },
     {
       sequelize,
       modelName: "User",
       timestamps:true,
+      paranoid:true,
       tableName: "users",
     }
   );
