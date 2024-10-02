@@ -1,23 +1,26 @@
 const Models = require("../../models/index");
 const { http, messages } = require("../../constant/constant");
 const {
-  validateAddPlaylist,
+  validatePlaylist,
   validateAddSongPlaylist,
 } = require("../../services/validations/playlistValidation");
 
 module.exports.addPlaylist = async (req, res) => {
   try {
-    const { value } = validateAddPlaylist(req.body, res);
+    const userId = req.userId;
+    const { value } = validatePlaylist(req.body, res);
     const data = await Models.Playlist.create({
       playlist_name: value.playlist_name,
-      user_id: value.user_id,
+      user_id: userId,
     });
     res.status(http.OK.code).send({
+      success: true,
       data,
       message: http.OK.message,
     });
   } catch (e) {
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
       data: null,
       message: http.INTERNAL_SERVER_ERROR.message,
     });
@@ -26,14 +29,57 @@ module.exports.addPlaylist = async (req, res) => {
 
 module.exports.deletePlaylist = async (req, res) => {
   try {
+    const userId = req.userId;
     const id = parseInt(req.params.id);
+
     await Models.Playlist.destroy({
       where: {
         id,
+        user_id: userId,
       },
     });
-    res.send({
-      message: messages.REMOVE,
+    res.status(http.OK.code).send({
+      success: true,
+      message: messages.REMOVED,
+    });
+  } catch (e) {
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.deleteSongFromPlaylist = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const id = parseInt(req.params.id);
+    const playlistId = parseInt(req.params.playlistId);
+
+    const playlist = await Models.Playlist.findOne({
+      where: { id: playlistId, user_id: userId },
+    });
+    if (!playlist) {
+      return res.status(http.NOT_FOUND.code).send({
+        success: false,
+        message: http.NOT_FOUND.message,
+      });
+    }
+    const songs = await Models.Song.findOne({ where: { id: id } });
+    if (songs.length === 0) {
+      return res.status(http.NOT_FOUND.code).send({
+        success: false,
+        message: http.NOT_FOUND.message,
+      });
+    }
+    await playlist.removeSongs(songs);
+
+    res.status(http.OK.code).send({
+      success: true,
+      playlistId: playlist.id,
+      removedSongs: songs,
+      message: http.OK.message,
     });
   } catch (e) {
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
@@ -46,17 +92,17 @@ module.exports.deletePlaylist = async (req, res) => {
 
 module.exports.updatePlaylist = async (req, res) => {
   try {
+    const userId = req.userId;
     const id = parseInt(req.params.id);
-    const { name, songs_id, user_id } = req.body;
+    const { value } = validatePlaylist(req.body);
 
     const updateFields = {
-      playlist_name: name,
-      songs_id,
-      user_id,
+      playlist_name: value.playlist_name,
     };
     const [affectedRows] = await Models.Playlist.update(updateFields, {
       where: {
-        id,
+        id: id,
+        user_id: userId,
       },
     });
     if (affectedRows === 0) {
@@ -66,10 +112,9 @@ module.exports.updatePlaylist = async (req, res) => {
         message: http.NOT_FOUND.message,
       });
     }
-
     res.status(http.OK.code).send({
       success: true,
-      data: name,
+      data: { affectedRows: affectedRows },
       message: http.CREATED.message,
     });
   } catch (e) {
@@ -81,21 +126,71 @@ module.exports.updatePlaylist = async (req, res) => {
     });
   }
 };
-module.exports.getPlaylistData = async (req, res) => {
+module.exports.getAllPlaylistData = async (req, res) => {
   try {
-    const data = await Models.Playlist.findAll();
-    if (!data) {
-      return res.status(http.NOT_FOUND.code).send({
-        data,
-        message: http.NOT_FOUND.message,
-      });
-    }
-    res.send({
+    const userId = req.userId;
+    const { page, pageSize } = req.query;
+    const currentPage = parseInt(page, 10) || 0;
+    const currentPageSize = parseInt(pageSize, 10) || 5;
+    const offset = currentPage * currentPageSize;
+    const limit = currentPageSize;
+
+    const data = await Models.Playlist.findAll({
+      where: {
+        user_id: userId,
+      },
+      offset: offset,
+      limit: limit,
+    });
+
+    res.status(http.OK.code).send({
+      success: true,
       data,
       message: http.OK.message,
     });
   } catch (e) {
-    res.send({
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.getPlaylistSongData = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { page, pageSize, playlistId } = req.query;
+    const currentPage = parseInt(page, 10) || 0;
+    const currentPageSize = parseInt(pageSize, 10) || 5;
+    const offset = currentPage * currentPageSize;
+    const limit = currentPageSize;
+
+    const data = await Models.Playlist.findAll({
+      where: {
+        id: playlistId,
+        user_id: userId,
+      },
+      include: [
+        {
+          model: Models.Song,
+          through: {
+            attributes: [],
+          },
+          attributes: ["id", "song_name", "singer"],
+        },
+      ],
+      offset: offset,
+      limit: limit,
+    });
+    res.status(http.OK.code).send({
+      success: true,
+      data,
+      message: http.OK.message,
+    });
+  } catch (e) {
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
       data: null,
       message: http.INTERNAL_SERVER_ERROR.message,
     });
@@ -104,13 +199,14 @@ module.exports.getPlaylistData = async (req, res) => {
 
 module.exports.addSongPlaylist = async (req, res) => {
   try {
+    const userId = req.userId;
     const { value } = validateAddSongPlaylist(req.body, res);
-    console.log(value);
     const playlist = await Models.Playlist.findOne({
-      where: { id: value.playlist_id },
+      where: { id: value.playlist_id, user_id: userId },
     });
     if (!playlist) {
       return res.status(http.NOT_FOUND.code).send({
+        success: false,
         message: http.NOT_FOUND.message,
       });
     }
@@ -121,13 +217,14 @@ module.exports.addSongPlaylist = async (req, res) => {
 
     if (songs.length === 0) {
       res.status(http.NOT_FOUND.code).send({
+        success: false,
         message: http.NOT_FOUND.message,
       });
     }
-    console.log(songs);
     await playlist.addSongs(songs);
 
     res.status(http.OK.code).send({
+      success: true,
       playlistId: playlist.id,
       addedSongs: songs,
       message: http.OK.message,
@@ -135,6 +232,7 @@ module.exports.addSongPlaylist = async (req, res) => {
   } catch (e) {
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
       data: null,
+      success: false,
       message: http.INTERNAL_SERVER_ERROR.message,
     });
   }

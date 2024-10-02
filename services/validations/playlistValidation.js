@@ -1,11 +1,9 @@
 const Joi = require("joi");
 const { http } = require("../../constant/constant");
 
-const validateAddPlaylist = (data, res) => {
+const validatePlaylist = (data, res) => {
   const playlistValidationSchema = Joi.object({
     playlist_name: Joi.string().min(3).max(30).required(),
-    // songs_id: Joi.number().required(),
-    user_id: Joi.number().required(),
   });
   const { error, value } = playlistValidationSchema.validate(data);
   if (error) {
@@ -41,6 +39,6 @@ const validateAddSongPlaylist = (data, res) => {
 };
 
 module.exports = {
-  validateAddPlaylist,
+  validatePlaylist,
   validateAddSongPlaylist,
 };

@@ -1,20 +1,5 @@
 const Joi = require("joi");
-const { http } = require("../../constant/constant");
-// const userValidationSchema = Joi.object({
-//   name: Joi.string().min(3).max(30).required(),
-//   email: Joi.string().email().required(),
-//   password: Joi.string().min(6).required(),
-//   type: Joi.string().valid("admin", "user").required(),
-// });
-
-// const validateUser = (data) => {
-//   return userValidationSchema.validate(data);
-// };
-
-// module.exports = {
-//   validateUser,
-// };
-//
+const { http, role } = require("../../constant/constant");
 
 const validateUserRegister = (data, res) => {
   const userValidationSchema = Joi.object({
@@ -60,13 +45,50 @@ const validateLogin = (data, res) => {
     value,
   };
 };
+
 const validateUpdateUserData = (data, res) => {
-  const loginValidationSchema = Joi.object({
+  const validateUpdateUserDataSchema = Joi.object({
     name: Joi.string().min(3).max(30).required(),
     email: Joi.string().email().required(),
-    type: Joi.string().valid("admin", "user").required(),
+    type: Joi.string().valid(role.admin, role.user).required(),
   });
-  const { error, value } = loginValidationSchema.validate(data);
+  const { error, value } = validateUpdateUserDataSchema.validate(data);
+  if (error) {
+    return res.status(http.BAD_REQUEST.code).send({
+      success: false,
+      message: http.BAD_REQUEST.message,
+      details: error.details.map((detail) => detail.message),
+    });
+  }
+  return {
+    success: true,
+    value,
+  };
+};
+
+const validateGenreData = (data, res) => {
+  const validateGenreDataSchema = Joi.object({
+    genreName: Joi.string().min(3).max(30).required(),
+  });
+  const { error, value } = validateGenreDataSchema.validate(data);
+  if (error) {
+    return res.status(http.BAD_REQUEST.code).send({
+      success: false,
+      message: http.BAD_REQUEST.message,
+      details: error.details.map((detail) => detail.message),
+    });
+  }
+  return {
+    success: true,
+    value,
+  };
+};
+
+const validateUserSongHistory = (data, res) => {
+  const validateUserSongHistorySchema = Joi.object({
+    song_id: Joi.number().required(),
+  });
+  const { error, value } = validateUserSongHistorySchema.validate(data);
   if (error) {
     return res.status(http.BAD_REQUEST.code).send({
       success: false,
@@ -82,5 +104,7 @@ const validateUpdateUserData = (data, res) => {
 module.exports = {
   validateUserRegister,
   validateLogin,
-  validateUpdateUserData
+  validateUpdateUserData,
+  validateGenreData,
+  validateUserSongHistory,
 };

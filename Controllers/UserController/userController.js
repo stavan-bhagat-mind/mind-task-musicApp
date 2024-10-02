@@ -7,6 +7,8 @@ const {
   validateUserRegister,
   validateLogin,
   validateUpdateUserData,
+  validateGenreData,
+  validateUserSongHistory,
 } = require("../../services/validations/userValidation");
 const { Op } = require("sequelize");
 
@@ -202,19 +204,23 @@ module.exports.UpdateUserData = async (req, res) => {
 module.exports.getUserData = async (req, res) => {
   try {
     const { page, pageSize } = req.query;
-
+    const userId = req.userId;
     const currentPage = parseInt(page, 10) || 0;
     const currentPageSize = parseInt(pageSize, 10) || 5;
-
     const offset = currentPage * currentPageSize;
     const limit = currentPageSize;
 
-    const data = await Models.User.findAll({
-      where: {},
-      offset: offset,
-      limit: limit,
+    const isAdmin = await Models.User.findOne({
+      where: { id: userId },
     });
-    console.log(data);
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      var data = await Models.User.findAll({
+        where: {},
+        offset: offset,
+        limit: limit,
+      });
+    }
     if (!data) {
       return res.status(http.NOT_FOUND.code).send({
         data,
@@ -235,20 +241,16 @@ module.exports.getUserData = async (req, res) => {
 
 module.exports.addGenre = async (req, res) => {
   try {
-    const { genreName, userId } = req.body;
-    const data = await Models.AccessControl.findOne({
-      where: { user_id: userId },
+    const userId = req.userId;
+    const { value } = validateGenreData(req.body);
+    const isAdmin = await Models.User.findOne({
+      where: { id: userId },
     });
-    if (!data) {
-      res.status(http.FORBIDDEN.code).send({
-        success: false,
-        data: null,
-        message: http.FORBIDDEN.message,
-      });
-    } else {
+
+    if (isAdmin.dataValues.user_type === role.admin) {
       const genre = await Models.Genre.create({
-        genre_name: genreName,
-        creator_id: data.dataValues.user_id,
+        genre_name: value.genreName,
+        creator_id: userId,
       });
 
       res.status(http.OK.code).send({
@@ -256,8 +258,15 @@ module.exports.addGenre = async (req, res) => {
         data: genre.dataValues.genre_name,
         message: http.OK.message,
       });
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
     }
   } catch (e) {
+    console.log(e);
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
       data: null,
       message: http.INTERNAL_SERVER_ERROR.message,
@@ -268,10 +277,10 @@ module.exports.addGenre = async (req, res) => {
 module.exports.userSongHistory = async (req, res) => {
   try {
     const userId = req.userId;
-    const { songId } = req.body;
+    const { value } = validateUserSongHistory(req.body);
 
     const data = await Models.Song.findAll({
-      where: { id: songId },
+      where: { id: value.song_id },
       include: [
         {
           model: Models.Genre,
@@ -289,7 +298,6 @@ module.exports.userSongHistory = async (req, res) => {
     });
 
     const genrePlayCounts = {};
-
     const existingHistories = await Models.UserSongHistory.findAll({
       where: { user_id: userId, genre_id: results[0].genreIds },
     });
@@ -298,7 +306,7 @@ module.exports.userSongHistory = async (req, res) => {
       genrePlayCounts[history.genre_id] = history.genre_play_count;
     });
 
-    for (const genreId of results[0].genreIds) {
+    const updatesAndCreates = results[0].genreIds.map(async (genreId) => {
       if (genrePlayCounts[genreId] !== undefined) {
         await Models.UserSongHistory.update(
           { genre_play_count: genrePlayCounts[genreId] + 1 },
@@ -317,13 +325,15 @@ module.exports.userSongHistory = async (req, res) => {
           genre_play_count: 1,
         });
       }
-    }
+    });
 
+    const result = await Promise.all(updatesAndCreates);
     res.status(http.OK.code).send({
       success: true,
       message: http.OK.message,
     });
   } catch (error) {
+    console.log(error);
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
       data: null,
       message: http.INTERNAL_SERVER_ERROR.message,
@@ -333,15 +343,36 @@ module.exports.userSongHistory = async (req, res) => {
 
 module.exports.deleteUserHistory = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-    await Models.UserSongHistory.destroy({
-      where: {
-        id,
-      },
+    const deleteUserId = parseInt(req.params.id);
+    const userId = req.userId;
+    const isAdmin = await Models.User.findOne({
+      where: { id: userId },
+      order: [["createdAt", "DESC"]],
     });
-    res.status(http.OK.code).send({
-      message: http.OK.message,
-    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      const userSongHistory = Models.UserSongHistory.findAll({
+        where: {
+          id: deleteUserId,
+        },
+      });
+      const idsToKeep = userSongHistory.slice(0, 3).map((entry) => entry.id);
+      await Models.UserSongHistory.destroy({
+        where: {
+          userId: req.params.userId,
+          id: { [Op.not]: idsToKeep },
+        },
+      });
+      res.status(http.OK.code).send({
+        success: true,
+        message: http.OK.message,
+      });
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        message: http.FORBIDDEN.message,
+      });
+    }
   } catch (e) {
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
       success: false,
@@ -357,9 +388,9 @@ module.exports.getUserRecommendation = async (req, res) => {
     const { page, pageSize } = req.query;
     const currentPage = parseInt(page, 10) || 0;
     const currentPageSize = parseInt(pageSize, 10) || 5;
-
     const offset = currentPage * currentPageSize;
     const limit = currentPageSize;
+
     const data = await Models.UserSongHistory.findAll({
       where: { user_id: userId },
       attributes: ["genre_id", "genre_play_count"],
@@ -421,55 +452,70 @@ module.exports.getUserRecommendation = async (req, res) => {
   }
 };
 
-module.exports.getUserPreference = async (req, res) => {
+module.exports.getUserPreferencePercentage = async (req, res) => {
   try {
-    const userId = parseInt(req.query.userId);
-    const data = await Models.UserSongHistory.findAll({
-      where: { user_id: userId },
-      attributes: ["genre_id", "genre_play_count"],
-      group: ["genre_id", "genre_play_count"],
-      order: [["genre_play_count", "DESC"]],
+    const userId = req.userId;
+    const isAdmin = await Models.User.findOne({
+      where: { id: userId },
     });
 
-    const totalPlayCount = data.reduce((sum, value) => {
-      return sum + value.dataValues.genre_play_count;
-    }, 0);
+    if (isAdmin.dataValues.user_type === role.admin) {
+      const userID = parseInt(req.query.userId);
+      const data = await Models.UserSongHistory.findAll({
+        where: { user_id: userId },
+        attributes: ["genre_id", "genre_play_count"],
+        group: ["genre_id", "genre_play_count"],
+        order: [["genre_play_count", "DESC"]],
+      });
 
-    const genreIdPercentages = data.map((value) => {
-      const genreId = value.dataValues.genre_id;
-      const playCount = value.dataValues.genre_play_count;
-      const percentage =
-        totalPlayCount > 0 ? (playCount / totalPlayCount) * 100 : 0;
+      const totalPlayCount = data.reduce((sum, value) => {
+        return sum + value.dataValues.genre_play_count;
+      }, 0);
 
-      return {
-        genreId,
-        percentage: percentage.toFixed(2),
-      };
-    });
+      const genreIdPercentages = data.map((value) => {
+        const genreId = value.dataValues.genre_id;
+        const playCount = value.dataValues.genre_play_count;
+        const percentage =
+          totalPlayCount > 0 ? (playCount / totalPlayCount) * 100 : 0;
 
-    const userGenrePercentages = await Promise.all(
-      genreIdPercentages.map(async (value) => {
-        return await Models.Genre.findAll({
-          where: { id: value.genreId },
-          attributes: ["id", "genre_name"],
-        });
-      })
-    );
+        return {
+          genreId,
+          percentage: percentage.toFixed(2),
+        };
+      });
 
-    const genreData = userGenrePercentages.map((value) => value[0].dataValues);
+      const userGenrePercentages = await Promise.all(
+        genreIdPercentages.map(async (value) => {
+          return await Models.Genre.findAll({
+            where: { id: value.genreId },
+            attributes: ["id", "genre_name"],
+          });
+        })
+      );
 
-    const mergedData = genreIdPercentages.map((percentage) => {
-      const genre = genreData.find((g) => g.id === percentage.genreId);
-      return {
-        ...genre,
-        percentage: percentage.percentage,
-      };
-    });
+      const genreData = userGenrePercentages.map(
+        (value) => value[0].dataValues
+      );
+      const mergedData = genreIdPercentages.map((percentage) => {
+        const genre = genreData.find((g) => g.id === percentage.genreId);
+        return {
+          ...genre,
+          percentage: percentage.percentage,
+        };
+      });
 
-    res.status(http.OK.code).send({
-      data: mergedData,
-      message: http.OK.message,
-    });
+      res.status(http.OK.code).send({
+        success: true,
+        data: mergedData,
+        message: http.OK.message,
+      });
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
+    }
   } catch (e) {
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
       data: null,

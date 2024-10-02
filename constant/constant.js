@@ -28,7 +28,8 @@ const errors = {
   INVALID_TOKEN: "invalid token",
 };
 const messages = {
-  REMOVE: "removed successfully.",
+  REMOVED: "removed successfully.",
+  UPDATED:"updated successfully."
 };
 module.exports = {
   salt: 10,
