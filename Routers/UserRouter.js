@@ -10,12 +10,14 @@ const {
     deleteUserHistory,
     getUserRecommendation,
     getUserPreferencePercentage,
+    getUserList
     //   accessControl,
   } = require("../Controllers/UserController/userController.js");
 const authenticationMiddleware=require("../Middlewares/middleware.js");
 const userRoute = require("express").Router();
 
 userRoute.get("/get-user-data",authenticationMiddleware, getUserData);
+userRoute.get("/get-user-list",authenticationMiddleware, getUserList);
 userRoute.get("/refresh",authenticationMiddleware, getAuthenticationToken);
 userRoute.get("/get-recommendation",authenticationMiddleware, getUserRecommendation);
 userRoute.get("/user-genre-percentage", authenticationMiddleware,getUserPreferencePercentage);
