@@ -6,7 +6,26 @@ const validateUserRegister = (data, res) => {
     name: Joi.string().min(3).max(30).required(),
     email: Joi.string().email().required(),
     password: Joi.string().min(6).required(),
-    type: Joi.string().valid("admin", "user").required(),
+    type: Joi.string().valid(...Object.values(role)).required(),
+  });
+  const { error, value } = userValidationSchema.validate(data);
+  if (error) {
+    return res.status(http.BAD_REQUEST.code).send({
+      data: null,
+      message: http.BAD_REQUEST.message,
+      details: error.details.map((detail) => detail.message),
+    });
+  }
+  return {
+    success: true,
+    value,
+  };
+};
+
+const validateUserRoleRegister = (data, res) => {
+  const userValidationSchema = Joi.object({
+    name: Joi.string().min(3).max(30).required(),
+    password: Joi.string().min(6).required(),
   });
   const { error, value } = userValidationSchema.validate(data);
   if (error) {
@@ -50,7 +69,6 @@ const validateUpdateUserData = (data, res) => {
   const validateUpdateUserDataSchema = Joi.object({
     name: Joi.string().min(3).max(30).required(),
     email: Joi.string().email().required(),
-    type: Joi.string().valid(role.admin, role.user).required(),
   });
   const { error, value } = validateUpdateUserDataSchema.validate(data);
   if (error) {
@@ -101,10 +119,73 @@ const validateUserSongHistory = (data, res) => {
     value,
   };
 };
+
+const validateRolesAssign = (data, res) => {
+  const validateRolesAssignSchema = Joi.object({
+    name: Joi.string().min(3).max(30).required(),
+    email: Joi.string().email().required(),
+    role_id: Joi.number().required(),
+  });
+  const { error, value } = validateRolesAssignSchema.validate(data);
+  if (error) {
+    return res.status(http.BAD_REQUEST.code).send({
+      success: false,
+      message: http.BAD_REQUEST.message,
+      details: error.details.map((detail) => detail.message),
+    });
+  }
+  return {
+    success: true,
+    value,
+  };
+};
+
+const validatePermissionData = (data, res) => {
+  const validatePermissionDataSchema = Joi.object({
+    permission_name: Joi.string().min(3).max(30).required(),
+    description: Joi.string().required(),
+  });
+  const { error, value } = validatePermissionDataSchema.validate(data);
+  if (error) {
+    return res.status(http.BAD_REQUEST.code).send({
+      success: false,
+      message: http.BAD_REQUEST.message,
+      details: error.details.map((detail) => detail.message),
+    });
+  }
+  return {
+    success: true,
+    value,
+  };
+};
+
+const validateRoleData = (data, res) => {
+  const validateRoleDataSchema = Joi.object({
+    role_name: Joi.string().min(3).max(30).required(),
+    description: Joi.string().required(),
+  });
+  const { error, value } = validateRoleDataSchema.validate(data);
+  if (error) {
+    return res.status(http.BAD_REQUEST.code).send({
+      success: false,
+      message: http.BAD_REQUEST.message,
+      details: error.details.map((detail) => detail.message),
+    });
+  }
+  return {
+    success: true,
+    value,
+  };
+};
+
 module.exports = {
   validateUserRegister,
   validateLogin,
   validateUpdateUserData,
   validateGenreData,
   validateUserSongHistory,
+  validateRolesAssign,
+  validateRoleData,
+  validatePermissionData,
+  validateUserRoleRegister
 };

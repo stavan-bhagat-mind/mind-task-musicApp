@@ -31,6 +31,7 @@ const messages = {
   REMOVED: "removed successfully.",
   UPDATED:"updated successfully."
 };
+const baseURL=`http://localhost:${process.env.PORT}/`;
 module.exports = {
   salt: 10,
   http,
@@ -39,5 +40,7 @@ module.exports = {
   role: {
     admin: "admin",
     user: "user",
+    subAdmin:"sub_admin"
   },
+  baseURL
 };

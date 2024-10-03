@@ -1,5 +1,5 @@
 const Models = require("../../models/index");
-const { http, errors, role ,messages} = require("../../constant/constant");
+const { http, errors, role, messages } = require("../../constant/constant");
 var jwt = require("jsonwebtoken");
 require("dotenv").config();
 const { hashConvert, hashVerify } = require("../../services/helpers");
@@ -9,7 +9,12 @@ const {
   validateUpdateUserData,
   validateGenreData,
   validateUserSongHistory,
+  validateRoleData,
+  validatePermissionData,
+  validateRolesAssign,
+  validateUserRoleRegister,
 } = require("../../services/validations/userValidation");
+const sendVerificationMail = require("../../config/email.config");
 const { Op } = require("sequelize");
 
 module.exports.registerUser = async (req, res) => {
@@ -31,6 +36,38 @@ module.exports.registerUser = async (req, res) => {
       message: http.CREATED.message,
     });
   } catch (e) {
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.roleUserRegister = async (req, res) => {
+  try {
+    const { token } = req.query;
+    const { value } = validateUserRoleRegister(req.body, res);
+    const hashPassword = await hashConvert(value.password);
+
+    const decoded = jwt.verify(token, process.env.JWT_KEY_EMAIL);
+
+    const newUser = await Models.User.create({
+      user_name: value.name,
+      user_password: hashPassword,
+      user_type: role.subAdmin,
+      email: decoded.data.email,
+      role_id: decoded.data.role_id,
+    });
+    res.status(http.CREATED.code).send({
+      success: true,
+      data: {
+        userName: newUser.user_name,
+      },
+      message: http.CREATED.message,
+    });
+  } catch (e) {
+    console.log(e);
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
       success: false,
       data: null,
@@ -183,12 +220,10 @@ module.exports.UpdateUserData = async (req, res) => {
       where: { id: userId },
       attributes: ["id", "user_name", "user_password", "user_type", "email"],
     });
-    const userType = user.dataValues.user_type;
 
     const updateFields = {
       user_name: value.name,
       email: value.email,
-      user_type: userType === role.admin ? value.type : role.user,
     };
 
     const [affectedRows] = await Models.User.update(updateFields, {
@@ -219,7 +254,7 @@ module.exports.UpdateUserData = async (req, res) => {
   }
 };
 
-module.exports.getUserData = async (req, res) => {
+module.exports.getUserList = async (req, res) => {
   try {
     const { page, pageSize } = req.query;
     const userId = req.userId;
@@ -239,6 +274,32 @@ module.exports.getUserData = async (req, res) => {
         limit: limit,
       });
     }
+    if (!data) {
+      return res.status(http.NOT_FOUND.code).send({
+        data,
+        message: http.NOT_FOUND.message,
+      });
+    }
+    res.status(http.OK.code).send({
+      data,
+      message: http.OK.message,
+    });
+  } catch (e) {
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.getUserData = async (req, res) => {
+  try {
+    const userId = req.userId;
+    var data = await Models.User.findAll({
+      where: { id: userId },
+      attributes: ["id", "user_name", "user_password", "user_type", "email"],
+    });
+
     if (!data) {
       return res.status(http.NOT_FOUND.code).send({
         data,
@@ -297,7 +358,7 @@ module.exports.userSongHistory = async (req, res) => {
     const userId = req.userId;
     const { value } = validateUserSongHistory(req.body);
 
-    const data = await Models.Song.findAll({
+    const data = await Models.Song.findOne({
       where: { id: value.song_id },
       include: [
         {
@@ -309,32 +370,23 @@ module.exports.userSongHistory = async (req, res) => {
         },
       ],
     });
+    const results = data.dataValues.Genres.map((value) => {
+      return value.dataValues.id;
+    });
 
-    const results = data.map((song) => {
-      const genreIds = song.Genres.map((genre) => genre.id);
-      return { songName: song.song_name, genreIds: genreIds };
+    const existingHistories = await Models.UserSongHistory.findAll({
+      where: { user_id: userId, genre_id: { [Op.in]: results } },
     });
 
     const genrePlayCounts = {};
-    const existingHistories = await Models.UserSongHistory.findAll({
-      where: { user_id: userId, genre_id: results[0].genreIds },
-    });
-
     existingHistories.forEach((history) => {
-      genrePlayCounts[history.genre_id] = history.genre_play_count;
+      genrePlayCounts[history.genre_id] = history;
     });
-
-    const updatesAndCreates = results[0].genreIds.map(async (genreId) => {
-      if (genrePlayCounts[genreId] !== undefined) {
+    const updatesAndCreates = results.map(async (genreId) => {
+      if (genrePlayCounts[genreId]) {
         await Models.UserSongHistory.update(
-          { genre_play_count: genrePlayCounts[genreId] + 1 },
-          {
-            where: {
-              id: existingHistories.find(
-                (history) => history.genre_id === genreId
-              ).id,
-            },
-          }
+          { genre_play_count: genrePlayCounts[genreId].genre_play_count + 1 },
+          { where: { id: genrePlayCounts[genreId].id } }
         );
       } else {
         await Models.UserSongHistory.create({
@@ -345,7 +397,7 @@ module.exports.userSongHistory = async (req, res) => {
       }
     });
 
-    const result = await Promise.all(updatesAndCreates);
+    await Promise.all(updatesAndCreates);
     res.status(http.OK.code).send({
       success: true,
       message: http.OK.message,
@@ -542,6 +594,146 @@ module.exports.getUserPreferencePercentage = async (req, res) => {
   }
 };
 
+module.exports.getRoleData = async (req, res) => {
+  try {
+    const { page, pageSize } = req.query;
+    const userId = req.userId;
+    const currentPage = parseInt(page, 10) || 0;
+    const currentPageSize = parseInt(pageSize, 10) || 10;
+    const offset = currentPage * currentPageSize;
+    const limit = currentPageSize;
+
+    const isAdmin = await Models.User.findOne({
+      where: { id: userId },
+    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      var data = await Models.Role.findAll({
+        where: {},
+        offset: offset,
+        limit: limit,
+      });
+    }
+    if (!data) {
+      return res.status(http.NOT_FOUND.code).send({
+        data,
+        message: http.NOT_FOUND.message,
+      });
+    }
+    res.status(http.OK.code).send({
+      data,
+      message: http.OK.message,
+    });
+  } catch (e) {
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.userRolesAssign = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { value } = validateRolesAssign(req.body);
+
+    const isAdmin = await Models.User.findOne({
+      where: { id: userId },
+    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      const authToken = jwt.sign(
+        {
+          data: { email: value.email, role_id: value.role_id },
+        },
+        process.env.JWT_KEY_EMAIL,
+        { expiresIn: process.env.JWT_EXPIRE_TIME_EMAIL }
+      );
+      await sendVerificationMail(value.email, authToken);
+      res.status(http.OK.code).send({
+        success: true,
+        email: value.email,
+        message: http.OK.message,
+      });
+    }
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.addPermission = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { value } = validatePermissionData(req.body);
+    const isAdmin = await Models.User.findOne({
+      where: { id: userId },
+    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      const permission = await Models.Permission.create({
+        permission_name: value.role_name,
+        description: value.description,
+      });
+
+      res.status(http.OK.code).send({
+        success: true,
+        data: permission.dataValues.genre_name,
+        message: http.OK.message,
+      });
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
+    }
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.addRole = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { value } = validateRoleData(req.body);
+    const isAdmin = await Models.User.findOne({
+      where: { id: userId },
+    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      const role = await Models.Role.create({
+        role_name: value.role_name,
+        description: value.description,
+      });
+
+      res.status(http.OK.code).send({
+        success: true,
+        data: role.dataValues.genre_name,
+        message: http.OK.message,
+      });
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
+    }
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
 // module.exports.accessControl = async (req, res) => {
 //   try {
 //     const { user_id, password } = req.body;
