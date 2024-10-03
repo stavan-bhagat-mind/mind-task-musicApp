@@ -464,7 +464,6 @@ module.exports.getUserRecommendation = async (req, res) => {
     const data = await Models.UserSongHistory.findAll({
       where: { user_id: userId },
       attributes: ["genre_id", "genre_play_count"],
-      group: ["genre_id", "genre_play_count"],
       order: [["genre_play_count", "DESC"]],
       limit: 2,
     });
@@ -492,14 +491,12 @@ module.exports.getUserRecommendation = async (req, res) => {
       limit: limit,
     });
 
-    const SuggestionSongs = songs.map((value) => {
+    const SuggestionSongs = songs.flatMap((value) => {
       const song = value.dataValues.Songs;
       return song.map((value) => value.dataValues);
     });
 
-    const flatResult = SuggestionSongs.flat(Infinity);
-
-    const uniqueSuggestions = flatResult.filter(
+    const uniqueSuggestions = SuggestionSongs.filter(
       (value, index, self) => index === self.findIndex((t) => t.id === value.id)
     );
 
