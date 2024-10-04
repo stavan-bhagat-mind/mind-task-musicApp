@@ -13,7 +13,7 @@ const http = {
 
   BAD_REQUEST: { code: 400, message: "Bad Request" },
   UNAUTHORIZED: { code: 401, message: "Unauthorized" },
-  FORBIDDEN: { code: 403, message: "Forbidden" },
+  FORBIDDEN: { code: 403, message: "Forbidden, do not have access" },
   NOT_FOUND: { code: 404, message: "Not Found" },
 
   INTERNAL_SERVER_ERROR: { code: 500, message: "Internal Server Error" },
@@ -29,9 +29,14 @@ const errors = {
 };
 const messages = {
   REMOVED: "removed successfully.",
-  UPDATED:"updated successfully."
+  UPDATED: "updated successfully.",
 };
-const baseURL=`http://localhost:${process.env.PORT}/`;
+const baseURL = `http://localhost:${process.env.PORT}/`;
+const validationMessage = {
+  OnlyLettersNUmbersUnderscores:
+    "Permission name can only contain letters, numbers, and underscores, with no spaces.",
+  mustBe3to30Long: "Permission name must be between 3 and 30 characters long.",
+};
 module.exports = {
   salt: 10,
   http,
@@ -40,7 +45,8 @@ module.exports = {
   role: {
     admin: "admin",
     user: "user",
-    subAdmin:"sub_admin"
+    subAdmin: "sub_admin",
   },
-  baseURL
+  baseURL,
+  validationMessage,
 };

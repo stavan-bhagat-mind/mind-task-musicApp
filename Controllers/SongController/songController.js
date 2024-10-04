@@ -1,6 +1,9 @@
 const Models = require("../../models/index");
 const { http, messages, role } = require("../../constant/constant");
-const { validateSongs } = require("../../services/validations/songValidation");
+const {
+  validateSongs,
+  validateSongGenre,
+} = require("../../services/validations/songValidation");
 
 module.exports.addSong = async (req, res) => {
   try {
@@ -197,6 +200,48 @@ module.exports.getSearchData = async (req, res) => {
       data: data[0].dataValues.Songs,
       message: http.OK.message,
     });
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports. UpdateSongGenreData = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const id = parseInt(req.params.id);
+    const { value } = validateSongGenre(req.body, res);
+
+    const isAdmin = await Models.User.findOne({
+      where: { id: userId },
+    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      const song = await Models.Song.findByPk(id);
+      if (!song) {
+        return res.status(404).send({
+          success: false,
+          message: "Role not found",
+        });
+      }
+      const data = await song.setGenres(value.genre_id);
+
+      res.status(http.OK.code).send({
+        success: true,
+        data,
+        message: messages.REMOVED,
+      });
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
+    }
   } catch (e) {
     console.log(e);
     res.status(http.INTERNAL_SERVER_ERROR.code).send({

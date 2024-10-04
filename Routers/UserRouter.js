@@ -1,4 +1,4 @@
-const { baseURL } = require("../constant/constant.js");
+const { baseURL, role } = require("../constant/constant.js");
 const {
     registerUser,
     loginUser,
@@ -16,34 +16,56 @@ const {
     addRole,
     addPermission,
     roleUserRegister,
-    getUserData
-    //   accessControl,
+    getUserData,
+    getPermissionData,
+    rolePermissionAssign,
+    deleteRole,
+    deletePermission,
+    UpdateRoleData,
+    UpdatePermissionData,
+    UpdateRolePermissionData,
+    getRolePermissionData,
+    getRolePermissionList,
+    UpdateUserRole,
   } = require("../Controllers/UserController/userController.js");
 const authenticationMiddleware=require("../Middlewares/middleware.js");
+const authRoleMiddleware=require("../Middlewares/accessControl.middleware.js");
 const userRoute = require("express").Router();
 
-userRoute.get("/get-user-list",authenticationMiddleware, getUserList);
-userRoute.get("/get-user-data",authenticationMiddleware, getUserData);
-userRoute.get("/get-role-data",authenticationMiddleware, getRoleData);
+// get requests
+userRoute.get("/get-user-list",authenticationMiddleware,authRoleMiddleware([role.admin,role.subAdmin]), getUserList);
+userRoute.get("/get-user-data",authenticationMiddleware,authRoleMiddleware([role]), getUserData);
+userRoute.get("/get-role-data",authenticationMiddleware,authRoleMiddleware([role.admin]), getRoleData);
+userRoute.get("/get-permission-data",authenticationMiddleware,authRoleMiddleware([role.admin]), getPermissionData);
+userRoute.get("/get-role-permission-data",authenticationMiddleware,authRoleMiddleware([role.admin]), getRolePermissionData);
+userRoute.get("/get-role-permission-List",authenticationMiddleware,authRoleMiddleware([role.admin]), getRolePermissionList);
 userRoute.get("/refresh",authenticationMiddleware, getAuthenticationToken);
-userRoute.get("/get-recommendation",authenticationMiddleware, getUserRecommendation);
-userRoute.get("/user-genre-percentage", authenticationMiddleware,getUserPreferencePercentage);
-userRoute.post("/register", registerUser);
-userRoute.post("/role-user-register", roleUserRegister);
-userRoute.post("/login", loginUser);
-userRoute.post("/add-genre",authenticationMiddleware, addGenre);
-userRoute.post("/add-role",authenticationMiddleware, addRole);
-userRoute.post("/add-permission",authenticationMiddleware, addPermission);
-userRoute.post("/user-song-history", authenticationMiddleware,userSongHistory);
-userRoute.patch("/update/:id", authenticationMiddleware,UpdateUserData);
-userRoute.delete("/delete/:id",authenticationMiddleware, deleteUser);
-userRoute.delete("/delete-user-history/:deleteUserId",authenticationMiddleware, deleteUserHistory);
-userRoute.post("/user-role-assign",authenticationMiddleware, userRolesAssign);
+userRoute.get("/get-recommendation",authenticationMiddleware,authRoleMiddleware([...Object.values(role)]), getUserRecommendation);
+userRoute.get("/user-genre-percentage", authenticationMiddleware,authRoleMiddleware([role]),getUserPreferencePercentage);
 userRoute.get("/user-role-register", (req, res) => {
   const token = req.query.token;
   res.render("invites/index", { token, baseURL });
 });
-// userRoute.get("/get-recommendation",authenticationMiddleware, getUserRecommendation);
-// userRoute.post("/access-control", accessControl);
+// post requests
+userRoute.post("/register",authRoleMiddleware([role.user]), registerUser);
+userRoute.post("/role-user-register", roleUserRegister);
+userRoute.post("/login", loginUser);
+userRoute.post("/add-genre",authenticationMiddleware, authRoleMiddleware([role.admin,role.subAdmin]), addGenre);
+userRoute.post("/add-role",authenticationMiddleware,authRoleMiddleware([role.admin]), addRole);
+userRoute.post("/add-permission",authenticationMiddleware,authRoleMiddleware([role.admin]), addPermission);
+userRoute.post("/user-song-history", authenticationMiddleware,authRoleMiddleware([role.admin,role.subAdmin]),userSongHistory);
+userRoute.post("/user-role-assign",authenticationMiddleware,authRoleMiddleware([role.admin]), userRolesAssign);
+userRoute.post("/role-permission-assign",authenticationMiddleware,authRoleMiddleware([role.admin]), rolePermissionAssign);
+// patch requests
+userRoute.patch("/update/:id", authenticationMiddleware,authRoleMiddleware([role]),UpdateUserData);
+userRoute.patch("/update-permission/:id", authenticationMiddleware,authRoleMiddleware([role.admin]),UpdatePermissionData);
+userRoute.patch("/update-role/:id", authenticationMiddleware,authRoleMiddleware([role.admin]),UpdateRoleData);
+userRoute.patch("/update-role-permission", authenticationMiddleware,authRoleMiddleware([role.admin]),UpdateRolePermissionData);
+userRoute.patch("/update-user-role/:id", authenticationMiddleware,authRoleMiddleware([role.admin]),UpdateUserRole);
+// delete requests
+userRoute.delete("/delete/:id",authenticationMiddleware,authRoleMiddleware([role]), deleteUser);
+userRoute.delete("/delete-user-history/:deleteUserId",authenticationMiddleware,authRoleMiddleware([role.admin,role.subAdmin]), deleteUserHistory);
+userRoute.delete("/delete-role/:id",authenticationMiddleware,authRoleMiddleware([role.admin]), deleteRole);
+userRoute.delete("/delete-permission/:id",authenticationMiddleware,authRoleMiddleware([role.admin]), deletePermission);
 
 module.exports =  userRoute;

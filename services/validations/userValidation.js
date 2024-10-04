@@ -6,7 +6,9 @@ const validateUserRegister = (data, res) => {
     name: Joi.string().min(3).max(30).required(),
     email: Joi.string().email().required(),
     password: Joi.string().min(6).required(),
-    type: Joi.string().valid(...Object.values(role)).required(),
+    type: Joi.string()
+      .valid(...Object.values(role))
+      .required(),
   });
   const { error, value } = userValidationSchema.validate(data);
   if (error) {
@@ -142,7 +144,11 @@ const validateRolesAssign = (data, res) => {
 
 const validatePermissionData = (data, res) => {
   const validatePermissionDataSchema = Joi.object({
-    permission_name: Joi.string().min(3).max(30).required(),
+    permission_name: Joi.string()
+      .pattern(/^[a-zA-Z0-9_]+$/)
+      .min(3)
+      .max(30)
+      .required(),
     description: Joi.string().required(),
   });
   const { error, value } = validatePermissionDataSchema.validate(data);
@@ -178,6 +184,43 @@ const validateRoleData = (data, res) => {
   };
 };
 
+const validateRolePermission = (data, res) => {
+  const validateRolePermissionSchema = Joi.object({
+    role_id: Joi.number().required(),
+    permission_id: Joi.array().items(Joi.number()).required(),
+  });
+  const { error, value } = validateRolePermissionSchema.validate(data);
+  if (error) {
+    return res.status(http.BAD_REQUEST.code).send({
+      success: false,
+      message: http.BAD_REQUEST.message,
+      details: error.details.map((detail) => detail.message),
+    });
+  }
+  return {
+    success: true,
+    value,
+  };
+};
+
+const validateUpdateUserRole = (data, res) => {
+  const validateUpdateUserRoleSchema = Joi.object({
+    role_id: Joi.number().required(),
+  });
+  const { error, value } = validateUpdateUserRoleSchema.validate(data);
+  if (error) {
+    return res.status(http.BAD_REQUEST.code).send({
+      success: false,
+      message: http.BAD_REQUEST.message,
+      details: error.details.map((detail) => detail.message),
+    });
+  }
+  return {
+    success: true,
+    value,
+  };
+};
+
 module.exports = {
   validateUserRegister,
   validateLogin,
@@ -187,5 +230,7 @@ module.exports = {
   validateRolesAssign,
   validateRoleData,
   validatePermissionData,
-  validateUserRoleRegister
+  validateUserRoleRegister,
+  validateRolePermission,
+  validateUpdateUserRole,
 };

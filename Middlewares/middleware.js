@@ -1,8 +1,9 @@
 const { http, errors } = require("../constant/constant");
 require("dotenv").config;
 const jwt = require("jsonwebtoken");
+const Models = require("../models/index");
 
-const authenticationMiddleware = (req, res, next) => {
+const authenticationMiddleware = async (req, res, next) => {
   try {
     const authenticationToken = req.headers["authorization"];
     if (!authenticationToken) {
@@ -14,7 +15,18 @@ const authenticationMiddleware = (req, res, next) => {
     }
     const token = authenticationToken.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_KEY);
-    req.userId = decoded.data.id;
+    const user = await Models.User.findOne({
+      where: { id: decoded.data.id },
+      attributes: [
+        "id",
+        "user_name",
+        "user_type",
+        "user_password",
+        "email",
+        "role_id",
+      ],
+    });
+    req.authUser = user.dataValues;
     next();
   } catch (error) {
     if (error.name === "TokenExpiredError") {

@@ -13,6 +13,8 @@ const {
   validatePermissionData,
   validateRolesAssign,
   validateUserRoleRegister,
+  validateRolePermission,
+  validateUpdateUserRole,
 } = require("../../services/validations/userValidation");
 const sendVerificationMail = require("../../config/email.config");
 const { Op } = require("sequelize");
@@ -79,23 +81,23 @@ module.exports.roleUserRegister = async (req, res) => {
 module.exports.loginUser = async (req, res) => {
   try {
     const { value } = validateLogin(req.body, res);
-    const User = await Models.User.findOne({
+    const user = await Models.User.findOne({
       where: {
         email: value.email,
       },
     });
 
-    if (!User) {
+    if (!user) {
       return res.status(http.NOT_FOUND.code).send({
         success: false,
         message: http.NOT_FOUND.message,
       });
     }
-    await hashVerify(value.password, User.dataValues.user_password);
+    await hashVerify(value.password, user.dataValues.user_password);
 
     const accessToken = jwt.sign(
       {
-        data: { email: User.dataValues.email, id: User.dataValues.id },
+        data: { email: user.dataValues.email, id: user.dataValues.id },
       },
       process.env.JWT_KEY,
       { expiresIn: process.env.JWT_EXPIRE_TIME }
@@ -103,7 +105,7 @@ module.exports.loginUser = async (req, res) => {
 
     const refreshToken = jwt.sign(
       {
-        data: { email: User.dataValues.email, id: User.dataValues.id },
+        data: { email: user.dataValues.email, id: user.dataValues.id },
       },
       process.env.JWT_REFRESH_KEY,
       { expiresIn: process.env.JWT_REFRESH_EXPIRE_TIME }
@@ -112,7 +114,7 @@ module.exports.loginUser = async (req, res) => {
     res.status(http.ACCEPTED.code).send({
       success: true,
       data: {
-        userName: User.dataValues.user_name,
+        userName: user.dataValues.user_name,
       },
       accessToken,
       refreshToken,
@@ -129,32 +131,16 @@ module.exports.loginUser = async (req, res) => {
 
 module.exports.deleteUser = async (req, res) => {
   try {
-    const userId = req.userId;
     const id = parseInt(req.params.id);
-    const isAdmin = await Models.User.findOne({
-      where: { id: userId },
+    const deletedUser = await Models.User.destroy({
+      where: {
+        id,
+      },
     });
-
-    if (
-      isAdmin.dataValues.user_type === role.admin ||
-      userId === isAdmin.dataValues.id
-    ) {
-      const deletedUser = await Models.User.destroy({
-        where: {
-          id,
-        },
-      });
-      res.status(http.OK.code).send({
-        success: true,
-        message: messages.REMOVED,
-      });
-    } else {
-      res.status(http.FORBIDDEN.code).send({
-        success: false,
-        data: null,
-        message: http.FORBIDDEN.message,
-      });
-    }
+    res.status(http.OK.code).send({
+      success: true,
+      message: messages.REMOVED,
+    });
   } catch (e) {
     console.log(e);
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
@@ -212,15 +198,15 @@ module.exports.getAuthenticationToken = async (req, res) => {
 
 module.exports.UpdateUserData = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-    const userId = req.userId;
+    // const id = parseInt(req.params.id);
+    const { id } = req.authUser;
     const { value } = validateUpdateUserData(req.body, res);
 
     const user = await Models.User.findOne({
-      where: { id: userId },
+      where: { id: id },
       attributes: ["id", "user_name", "user_password", "user_type", "email"],
     });
-
+    console.log(user);
     const updateFields = {
       user_name: value.name,
       email: value.email,
@@ -257,14 +243,14 @@ module.exports.UpdateUserData = async (req, res) => {
 module.exports.getUserList = async (req, res) => {
   try {
     const { page, pageSize } = req.query;
-    const userId = req.userId;
+    const { id } = req.authUser;
     const currentPage = parseInt(page, 10) || 0;
     const currentPageSize = parseInt(pageSize, 10) || 5;
     const offset = currentPage * currentPageSize;
     const limit = currentPageSize;
 
     const isAdmin = await Models.User.findOne({
-      where: { id: userId },
+      where: { id: id },
     });
 
     if (isAdmin.dataValues.user_type === role.admin) {
@@ -294,9 +280,9 @@ module.exports.getUserList = async (req, res) => {
 
 module.exports.getUserData = async (req, res) => {
   try {
-    const userId = req.userId;
-    var data = await Models.User.findAll({
-      where: { id: userId },
+    const { id } = req.authUser;
+    var data = await Models.User.findOne({
+      where: { id },
       attributes: ["id", "user_name", "user_password", "user_type", "email"],
     });
 
@@ -320,30 +306,19 @@ module.exports.getUserData = async (req, res) => {
 
 module.exports.addGenre = async (req, res) => {
   try {
-    const userId = req.userId;
+    const { id } = req.authUser;
     const { value } = validateGenreData(req.body);
-    const isAdmin = await Models.User.findOne({
-      where: { id: userId },
+
+    const genre = await Models.Genre.create({
+      genre_name: value.genreName,
+      creator_id: id,
     });
 
-    if (isAdmin.dataValues.user_type === role.admin) {
-      const genre = await Models.Genre.create({
-        genre_name: value.genreName,
-        creator_id: userId,
-      });
-
-      res.status(http.OK.code).send({
-        success: true,
-        data: genre.dataValues.genre_name,
-        message: http.OK.message,
-      });
-    } else {
-      res.status(http.FORBIDDEN.code).send({
-        success: false,
-        data: null,
-        message: http.FORBIDDEN.message,
-      });
-    }
+    res.status(http.OK.code).send({
+      success: true,
+      data: genre.dataValues.genre_name,
+      message: http.OK.message,
+    });
   } catch (e) {
     console.log(e);
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
@@ -355,7 +330,7 @@ module.exports.addGenre = async (req, res) => {
 
 module.exports.userSongHistory = async (req, res) => {
   try {
-    const userId = req.userId;
+    const { id } = req.authUser;
     const { value } = validateUserSongHistory(req.body);
 
     const data = await Models.Song.findOne({
@@ -375,7 +350,7 @@ module.exports.userSongHistory = async (req, res) => {
     });
 
     const existingHistories = await Models.UserSongHistory.findAll({
-      where: { user_id: userId, genre_id: { [Op.in]: results } },
+      where: { user_id: id, genre_id: { [Op.in]: results } },
     });
 
     const genrePlayCounts = {};
@@ -390,7 +365,7 @@ module.exports.userSongHistory = async (req, res) => {
         );
       } else {
         await Models.UserSongHistory.create({
-          user_id: userId,
+          user_id: id,
           genre_id: genreId,
           genre_play_count: 1,
         });
@@ -413,23 +388,23 @@ module.exports.userSongHistory = async (req, res) => {
 
 module.exports.deleteUserHistory = async (req, res) => {
   try {
-    const deleteUserId = parseInt(req.params.id);
-    const userId = req.userId;
+    const deleteId = parseInt(req.params.id);
+    const { id } = req.authUser;
     const isAdmin = await Models.User.findOne({
-      where: { id: userId },
+      where: { id: id },
       order: [["createdAt", "DESC"]],
     });
 
     if (isAdmin.dataValues.user_type === role.admin) {
       const userSongHistory = Models.UserSongHistory.findAll({
         where: {
-          id: deleteUserId,
+          id: deleteId,
         },
       });
       const idsToKeep = userSongHistory.slice(0, 3).map((entry) => entry.id);
       await Models.UserSongHistory.destroy({
         where: {
-          userId: req.params.userId,
+          id: req.params.id,
           id: { [Op.not]: idsToKeep },
         },
       });
@@ -454,7 +429,7 @@ module.exports.deleteUserHistory = async (req, res) => {
 
 module.exports.getUserRecommendation = async (req, res) => {
   try {
-    const userId = req.userId;
+    const { id } = req.authUser;
     const { page, pageSize } = req.query;
     const currentPage = parseInt(page, 10) || 0;
     const currentPageSize = parseInt(pageSize, 10) || 5;
@@ -462,7 +437,7 @@ module.exports.getUserRecommendation = async (req, res) => {
     const limit = currentPageSize;
 
     const data = await Models.UserSongHistory.findAll({
-      where: { user_id: userId },
+      where: { user_id: id },
       attributes: ["genre_id", "genre_play_count"],
       order: [["genre_play_count", "DESC"]],
       limit: 2,
@@ -471,26 +446,51 @@ module.exports.getUserRecommendation = async (req, res) => {
     const genreId = data.map((value) => {
       return value.dataValues.genre_id;
     });
-    const songs = await Models.Genre.findAll({
-      where: {
+    // const songs = await Models.Genre.findAll({
+    //   where: {
+    //     id: {
+    //       [Op.in]: genreId,
+    //     },
+    //   },
+    //   include: [
+    //     {
+    //       model: Models.Song,
+    //       through: {
+    //         attributes: [],
+    //       },
+    //       attributes: ["id", "song_name", "singer"],
+    //       distinct: true,
+    //     },
+    //   ],
+    //   offset: offset,
+    //   limit: limit,
+    // });
+
+    const songs = await Models.Song.findAll({
+      // where: {
+      //   id: {
+      //     [Op.in]: genreId,
+      //   },
+      // },
+      include: [
+        {
+          model: Models.Genre,
+          through: {
+            attributes: [],
+          },
+         where: {
         id: {
           [Op.in]: genreId,
         },
       },
-      include: [
-        {
-          model: Models.Song,
-          through: {
-            attributes: [],
-          },
-          attributes: ["id", "song_name", "singer"],
           distinct: true,
         },
       ],
+      attributes: ["id", "song_name", "singer"],
       offset: offset,
       limit: limit,
     });
-
+    console.log(songs);
     const SuggestionSongs = songs.flatMap((value) => {
       const song = value.dataValues.Songs;
       return song.map((value) => value.dataValues);
@@ -521,15 +521,15 @@ module.exports.getUserRecommendation = async (req, res) => {
 
 module.exports.getUserPreferencePercentage = async (req, res) => {
   try {
-    const userId = req.userId;
+    const { id } = req.authUser;
     const isAdmin = await Models.User.findOne({
-      where: { id: userId },
+      where: { id: id },
     });
 
     if (isAdmin.dataValues.user_type === role.admin) {
-      const userID = parseInt(req.query.userId);
+      const id = parseInt(req.query.id);
       const data = await Models.UserSongHistory.findAll({
-        where: { user_id: userId },
+        where: { user_id: id },
         attributes: ["genre_id", "genre_play_count"],
         group: ["genre_id", "genre_play_count"],
         order: [["genre_play_count", "DESC"]],
@@ -594,14 +594,14 @@ module.exports.getUserPreferencePercentage = async (req, res) => {
 module.exports.getRoleData = async (req, res) => {
   try {
     const { page, pageSize } = req.query;
-    const userId = req.userId;
+    const { id } = req.authUser;
     const currentPage = parseInt(page, 10) || 0;
     const currentPageSize = parseInt(pageSize, 10) || 10;
     const offset = currentPage * currentPageSize;
     const limit = currentPageSize;
 
     const isAdmin = await Models.User.findOne({
-      where: { id: userId },
+      where: { id: id },
     });
 
     if (isAdmin.dataValues.user_type === role.admin) {
@@ -631,11 +631,11 @@ module.exports.getRoleData = async (req, res) => {
 
 module.exports.userRolesAssign = async (req, res) => {
   try {
-    const userId = req.userId;
+    const { id } = req.authUser;
     const { value } = validateRolesAssign(req.body);
 
     const isAdmin = await Models.User.findOne({
-      where: { id: userId },
+      where: { id: id },
     });
 
     if (isAdmin.dataValues.user_type === role.admin) {
@@ -664,10 +664,10 @@ module.exports.userRolesAssign = async (req, res) => {
 
 module.exports.addPermission = async (req, res) => {
   try {
-    const userId = req.userId;
+    const { id } = req.authUser;
     const { value } = validatePermissionData(req.body);
     const isAdmin = await Models.User.findOne({
-      where: { id: userId },
+      where: { id: id },
     });
 
     if (isAdmin.dataValues.user_type === role.admin) {
@@ -699,10 +699,10 @@ module.exports.addPermission = async (req, res) => {
 
 module.exports.addRole = async (req, res) => {
   try {
-    const userId = req.userId;
+    const { id } = req.authUser;
     const { value } = validateRoleData(req.body);
     const isAdmin = await Models.User.findOne({
-      where: { id: userId },
+      where: { id: id },
     });
 
     if (isAdmin.dataValues.user_type === role.admin) {
@@ -731,37 +731,455 @@ module.exports.addRole = async (req, res) => {
     });
   }
 };
-// module.exports.accessControl = async (req, res) => {
-//   try {
-//     const { user_id, password } = req.body;
-//     if (!user_id) {
-//       res.status(http.NOT_FOUND.code).send({
-//         data: null,
-//         message: http.NOT_FOUND.message,
-//       });
-//     }
-//     const User = await Models.User.findOne({ where: { id: user_id } });
-//     if (!User) {
-//       return res.status(http.NOT_FOUND.code).send({
-//         User,
-//         message: http.NOT_FOUND.message,
-//       });
-//     }
-//     try {
-//       await hashVerify(password, User.dataValues.user_password);
-//     } catch (e) {
-//       console.log("err", e);
-//     }
-//     await Models.AccessControl.create({ user_id: User.dataValues.id });
-//     res.status(http.OK.code).send({
-//       success: true,
-//       message: http.OK.message,
-//     });
-//   } catch (e) {
-//     console.log(e);
-//     res.status(http.INTERNAL_SERVER_ERROR.code).send({
-//       data: null,
-//       message: http.INTERNAL_SERVER_ERROR.message,
-//     });
-//   }
-// };
+
+module.exports.getPermissionData = async (req, res) => {
+  try {
+    const { page, pageSize } = req.query;
+    const { id } = req.authUser;
+    const currentPage = parseInt(page, 10) || 0;
+    const currentPageSize = parseInt(pageSize, 10) || 10;
+    const offset = currentPage * currentPageSize;
+    const limit = currentPageSize;
+
+    const isAdmin = await Models.User.findOne({
+      where: { id: id },
+    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      var data = await Models.Permission.findAll({
+        where: {},
+        offset: offset,
+        limit: limit,
+      });
+    }
+    if (!data) {
+      return res.status(http.NOT_FOUND.code).send({
+        data,
+        message: http.NOT_FOUND.message,
+      });
+    }
+    res.status(http.OK.code).send({
+      success: true,
+      data,
+      message: http.OK.message,
+    });
+  } catch (e) {
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.rolePermissionAssign = async (req, res) => {
+  try {
+    const { id } = req.authUser;
+    const { value } = validateRolePermission(req.body);
+    const isAdmin = await Models.User.findOne({
+      where: { id: id },
+    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      const role = await Models.Role.findByPk(value.role_id);
+
+      if (!role) {
+        return res.status(404).send({
+          success: false,
+          message: http.NOT_FOUND.message,
+        });
+      }
+      const data = await role.addPermissions(value.permission_id);
+      res.status(http.OK.code).send({
+        success: true,
+        data,
+        message: http.OK.message,
+      });
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
+    }
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.deleteRole = async (req, res) => {
+  try {
+    // const { id } = req.authUser;
+    const id = parseInt(req.params.id);
+    const isAdmin = await Models.User.findOne({
+      where: { id: id },
+    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      const data = await Models.Role.destroy({
+        where: {
+          id,
+        },
+      });
+      res.status(http.OK.code).send({
+        success: true,
+        data,
+        message: messages.REMOVED,
+      });
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
+    }
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.deletePermission = async (req, res) => {
+  try {
+    // const { id } = req.authUser;
+    const id = parseInt(req.params.id);
+    const isAdmin = await Models.User.findOne({
+      where: { id: id },
+    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      const data = await Models.Permission.destroy({
+        where: {
+          id,
+        },
+      });
+      res.status(http.OK.code).send({
+        success: true,
+        data,
+        message: messages.REMOVED,
+      });
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
+    }
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.UpdateRoleData = async (req, res) => {
+  try {
+    // const { id } = req.authUser;
+    const id = parseInt(req.params.id);
+    const { value } = validateRoleData(req.body, res);
+
+    const isAdmin = await Models.User.findOne({
+      where: { id: id },
+    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      const updateFields = {
+        role_name: value.role_name,
+        description: value.description,
+      };
+      const [affectedRows] = await Models.Role.update(updateFields, {
+        where: {
+          id,
+        },
+      });
+      if (affectedRows === 0) {
+        return res.status(http.NOT_FOUND.code).send({
+          success: false,
+          data: null,
+          message: http.NOT_FOUND.message,
+        });
+      }
+
+      res.status(http.OK.code).send({
+        success: true,
+        data: affectedRows,
+        message: messages.REMOVED,
+      });
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
+    }
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.UpdatePermissionData = async (req, res) => {
+  try {
+    // const { id } = req.authUser;
+    const id = parseInt(req.params.id);
+    const { value } = validatePermissionData(req.body, res);
+
+    const isAdmin = await Models.User.findOne({
+      where: { id: id },
+    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      const updateFields = {
+        permission_name: value.permission_name,
+        description: value.description,
+      };
+      const [affectedRows] = await Models.Permission.update(updateFields, {
+        where: {
+          id,
+        },
+      });
+      if (affectedRows === 0) {
+        return res.status(http.NOT_FOUND.code).send({
+          success: false,
+          data: null,
+          message: http.NOT_FOUND.message,
+        });
+      }
+
+      res.status(http.OK.code).send({
+        success: true,
+        data: affectedRows,
+        message: messages.REMOVED,
+      });
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
+    }
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.getRolePermissionData = async (req, res) => {
+  try {
+    const { page, pageSize, role_id } = req.query;
+    const { id } = req.authUser;
+    const currentPage = parseInt(page, 10) || 0;
+    const currentPageSize = parseInt(pageSize, 10) || 10;
+    const roleId = parseInt(role_id, 10);
+    const offset = currentPage * currentPageSize;
+    const limit = currentPageSize;
+
+    const isAdmin = await Models.User.findOne({
+      where: { id: id },
+    });
+    if (isAdmin.dataValues.user_type === role.admin) {
+      var data = await Models.Role.findOne({
+        where: { id: roleId },
+        attributes: ["id", "role_name", "description"],
+        include: [
+          {
+            model: Models.Permission,
+            through: {
+              attributes: [],
+            },
+            attributes: ["id", "permission_name", "description"],
+          },
+        ],
+        offset: offset,
+        limit: limit,
+      });
+      console.log(data);
+    }
+
+    if (!data) {
+      return res.status(http.NOT_FOUND.code).send({
+        data,
+        message: http.NOT_FOUND.message,
+      });
+    }
+    res.status(http.OK.code).send({
+      success: true,
+      data,
+      message: http.OK.message,
+    });
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.getRolePermissionList = async (req, res) => {
+  try {
+    const { page, pageSize, role_id } = req.query;
+    const { id } = req.authUser;
+    const currentPage = parseInt(page, 10) || 0;
+    const currentPageSize = parseInt(pageSize, 10) || 10;
+    const offset = currentPage * currentPageSize;
+    const limit = currentPageSize;
+
+    const isAdmin = await Models.User.findOne({
+      where: { id: id },
+    });
+    if (isAdmin.dataValues.user_type === role.admin) {
+      var data = await Models.Role.findAll({
+        include: [
+          {
+            model: Models.Permission,
+            through: {
+              attributes: [],
+            },
+            attributes: ["id", "permission_name", "description"],
+          },
+        ],
+        offset: offset,
+        limit: limit,
+      });
+      if (!data) {
+        return res.status(http.NOT_FOUND.code).send({
+          data,
+          message: http.NOT_FOUND.message,
+        });
+      }
+      res.status(http.OK.code).send({
+        success: true,
+        data,
+        message: http.OK.message,
+      });
+    }
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.UpdateRolePermissionData = async (req, res) => {
+  try {
+    // const { id } = req.authUser;
+    const id = parseInt(req.params.id);
+    const { value } = validateRolePermission(req.body, res);
+
+    const isAdmin = await Models.User.findOne({
+      where: { id: id },
+    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      const role = await Models.Role.findByPk(value.role_id);
+      if (!role) {
+        return res.status(404).send({
+          success: false,
+          message: "Role not found",
+        });
+      }
+      const data = await role.setPermissions(value.permission_id);
+
+      res.status(http.OK.code).send({
+        success: true,
+        data,
+        message: messages.REMOVED,
+      });
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
+    }
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
+
+module.exports.UpdateUserRole = async (req, res) => {
+  try {
+    // const id = parseInt(req.params.id);
+    const { id } = req.authUser;
+    const { value } = validateUpdateUserRole(req.body, res);
+
+    const isAdmin = await Models.User.findOne({
+      where: { id: id },
+    });
+
+    if (isAdmin.dataValues.user_type === role.admin) {
+      const updateFields = {
+        role_id: value.role_id,
+      };
+      const isSubAdmin = await Models.User.findOne({
+        where: { id },
+      });
+      if (isSubAdmin.dataValues.user_type === role.subAdmin) {
+        const [affectedRows] = await Models.User.update(updateFields, {
+          where: {
+            id,
+          },
+        });
+        if (affectedRows === 0) {
+          return res.status(http.NOT_FOUND.code).send({
+            success: false,
+            data: null,
+            message: http.NOT_FOUND.message,
+          });
+        }
+
+        res.status(http.OK.code).send({
+          success: true,
+          data: affectedRows,
+          message: http.CREATED.message,
+        });
+      } else {
+        res.status(http.NOT_FOUND.code).send({
+          success: false,
+          data: null,
+          message: http.NOT_FOUND.message,
+        });
+      }
+    } else {
+      res.status(http.FORBIDDEN.code).send({
+        success: false,
+        data: null,
+        message: http.FORBIDDEN.message,
+      });
+    }
+  } catch (e) {
+    console.log(e);
+    res.status(http.INTERNAL_SERVER_ERROR.code).send({
+      success: false,
+      data: null,
+      message: http.INTERNAL_SERVER_ERROR.message,
+    });
+  }
+};
