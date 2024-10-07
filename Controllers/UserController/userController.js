@@ -331,52 +331,54 @@ module.exports.addGenre = async (req, res) => {
 module.exports.userSongHistory = async (req, res) => {
   try {
     const { id } = req.authUser;
-    const { value } = validateUserSongHistory(req.body);
+    if (req.authUser.user_type !== role.admin) {
+      const { value } = validateUserSongHistory(req.body);
 
-    const data = await Models.Song.findOne({
-      where: { id: value.song_id },
-      include: [
-        {
-          model: Models.Genre,
-          through: {
-            attributes: [],
+      const data = await Models.Song.findOne({
+        where: { id: value.song_id },
+        include: [
+          {
+            model: Models.Genre,
+            through: {
+              attributes: [],
+            },
+            attributes: ["id"],
           },
-          attributes: ["id"],
-        },
-      ],
-    });
-    const results = data.dataValues.Genres.map((value) => {
-      return value.dataValues.id;
-    });
+        ],
+      });
+      const results = data.dataValues.Genres.map((value) => {
+        return value.dataValues.id;
+      });
 
-    const existingHistories = await Models.UserSongHistory.findAll({
-      where: { user_id: id, genre_id: { [Op.in]: results } },
-    });
+      const existingHistories = await Models.UserSongHistory.findAll({
+        where: { user_id: id, genre_id: { [Op.in]: results } },
+      });
 
-    const genrePlayCounts = {};
-    existingHistories.forEach((history) => {
-      genrePlayCounts[history.genre_id] = history;
-    });
-    const updatesAndCreates = results.map(async (genreId) => {
-      if (genrePlayCounts[genreId]) {
-        await Models.UserSongHistory.update(
-          { genre_play_count: genrePlayCounts[genreId].genre_play_count + 1 },
-          { where: { id: genrePlayCounts[genreId].id } }
-        );
-      } else {
-        await Models.UserSongHistory.create({
-          user_id: id,
-          genre_id: genreId,
-          genre_play_count: 1,
-        });
-      }
-    });
+      const genrePlayCounts = {};
+      existingHistories.forEach((history) => {
+        genrePlayCounts[history.genre_id] = history;
+      });
+      const updatesAndCreates = results.map(async (genreId) => {
+        if (genrePlayCounts[genreId]) {
+          await Models.UserSongHistory.update(
+            { genre_play_count: genrePlayCounts[genreId].genre_play_count + 1 },
+            { where: { id: genrePlayCounts[genreId].id } }
+          );
+        } else {
+          await Models.UserSongHistory.create({
+            user_id: id,
+            genre_id: genreId,
+            genre_play_count: 1,
+          });
+        }
+      });
 
-    await Promise.all(updatesAndCreates);
-    res.status(http.OK.code).send({
-      success: true,
-      message: http.OK.message,
-    });
+      await Promise.all(updatesAndCreates);
+      res.status(http.OK.code).send({
+        success: true,
+        message: http.OK.message,
+      });
+    }
   } catch (error) {
     console.log(error);
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
@@ -478,11 +480,11 @@ module.exports.getUserRecommendation = async (req, res) => {
           through: {
             attributes: [],
           },
-         where: {
-        id: {
-          [Op.in]: genreId,
-        },
-      },
+          where: {
+            id: {
+              [Op.in]: genreId,
+            },
+          },
           distinct: true,
         },
       ],
@@ -666,28 +668,16 @@ module.exports.addPermission = async (req, res) => {
   try {
     const { id } = req.authUser;
     const { value } = validatePermissionData(req.body);
-    const isAdmin = await Models.User.findOne({
-      where: { id: id },
+    const permission = await Models.Permission.create({
+      permission_name: value.permission_name,
+      description: value.description,
+      identifier: value.identifier,
     });
-
-    if (isAdmin.dataValues.user_type === role.admin) {
-      const permission = await Models.Permission.create({
-        permission_name: value.role_name,
-        description: value.description,
-      });
-
-      res.status(http.OK.code).send({
-        success: true,
-        data: permission.dataValues.genre_name,
-        message: http.OK.message,
-      });
-    } else {
-      res.status(http.FORBIDDEN.code).send({
-        success: false,
-        data: null,
-        message: http.FORBIDDEN.message,
-      });
-    }
+    ~res.status(http.OK.code).send({
+      success: true,
+      data: permission.dataValues.genre_name,
+      message: http.OK.message,
+    });
   } catch (e) {
     console.log(e);
     res.status(http.INTERNAL_SERVER_ERROR.code).send({
@@ -849,8 +839,8 @@ module.exports.deleteRole = async (req, res) => {
 
 module.exports.deletePermission = async (req, res) => {
   try {
-    // const { id } = req.authUser;
-    const id = parseInt(req.params.id);
+    const { id } = req.authUser;
+    const recordId = parseInt(req.params.id);
     const isAdmin = await Models.User.findOne({
       where: { id: id },
     });
@@ -858,7 +848,7 @@ module.exports.deletePermission = async (req, res) => {
     if (isAdmin.dataValues.user_type === role.admin) {
       const data = await Models.Permission.destroy({
         where: {
-          id,
+          id: recordId,
         },
       });
       res.status(http.OK.code).send({

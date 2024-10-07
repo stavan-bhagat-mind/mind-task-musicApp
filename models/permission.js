@@ -1,6 +1,6 @@
 "use strict";
 const { Model } = require("sequelize");
-const { validationMessage } = require("../constant/constant");
+const { validationMessage, permissions } = require("../constant/constant");
 
 module.exports = (sequelize, DataTypes) => {
   class Permission extends Model {
@@ -19,7 +19,7 @@ module.exports = (sequelize, DataTypes) => {
         validate: {
           is: {
             args: [/^[a-zA-Z0-9_]+$/],
-            msg: validationMessage.OnlyLettersNUmbersUnderscores,
+            msg: validationMessage.OnlyLettersNumbersUnderscores,
           },
           len: {
             args: [3, 30],
@@ -27,10 +27,14 @@ module.exports = (sequelize, DataTypes) => {
           },
         },
       },
-      permission_description: {
+      description: {
         type: DataTypes.STRING,
         allowNull: false,
       },
+      identifier:{
+        type:DataTypes.ENUM(Object.values(permissions)),
+        allowNull: false,
+      }
     },
     {
       sequelize,

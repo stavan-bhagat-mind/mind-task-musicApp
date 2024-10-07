@@ -1,5 +1,5 @@
 const Joi = require("joi");
-const { http, role } = require("../../constant/constant");
+const { http, role, permissions } = require("../../constant/constant");
 
 const validateUserRegister = (data, res) => {
   const userValidationSchema = Joi.object({
@@ -149,7 +149,10 @@ const validatePermissionData = (data, res) => {
       .min(3)
       .max(30)
       .required(),
-    description: Joi.string().required(),
+      description: Joi.string().required(),
+    identifier: Joi.string()
+      .valid(...Object.values(permissions))
+      .required(),
   });
   const { error, value } = validatePermissionDataSchema.validate(data);
   if (error) {

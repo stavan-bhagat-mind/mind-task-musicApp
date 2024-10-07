@@ -33,20 +33,35 @@ const messages = {
 };
 const baseURL = `http://localhost:${process.env.PORT}/`;
 const validationMessage = {
-  OnlyLettersNUmbersUnderscores:
+  OnlyLettersNumbersUnderscores:
     "Permission name can only contain letters, numbers, and underscores, with no spaces.",
   mustBe3to30Long: "Permission name must be between 3 and 30 characters long.",
+};
+const role = {
+  admin: "admin",
+  user: "user",
+  subAdmin: "sub_admin",
+};
+
+const permissions = {
+  addSong: "ADD_SONG",
+  updateSong: "UPDATE_SONG",
+  deleteSong: "DELETE_SONG",
+  addGenre: "ADD_GENRE",
+  getUserData: "GET_USER",
+  getUserRecommendation: "GET_USER_RECOMMENDATION",
+  getUserGenrePercentage: "GET_USER_GENRE_PERCENTAGE",
+  updateUserData: "UPDATE_USER",
+  deleteUserData: "DELETE_USER",
+  deleteUserHistory: "DELETE_USER_HISTORY",
 };
 module.exports = {
   salt: 10,
   http,
   errors,
   messages,
-  role: {
-    admin: "admin",
-    user: "user",
-    subAdmin: "sub_admin",
-  },
+  role,
+  permissions,
   baseURL,
   validationMessage,
 };
